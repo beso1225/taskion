@@ -23,11 +23,13 @@ Taskion uses a **local-first, pull-based synchronization model**:
 Pulls bring data from Notion into the local database. This is the **authoritative direction**.
 
 **Trigger:**
+
 - Startup (full sync)
 - Periodic interval (default: 5 minutes)
 - Manual trigger (user-initiated)
 
 **Process:**
+
 1. Fetch all courses from Notion Courses database
 2. For each course:
    - If `is_archived = true` locally but `is_archived = false` in Notion → update to unarchived
@@ -40,6 +42,7 @@ Pulls bring data from Notion into the local database. This is the **authoritativ
    - Otherwise, apply Notion's state
 
 **Conflict Resolution During Pull:**
+
 - **Rule:** Notion version always wins in pull operations
 - **Timestamp comparison:** If local `updated_at > Notion updated_at`, log a warning but still apply Notion's version
 - **Rationale:** Notion is the authoritative source; local changes will be pushed in the next push cycle
@@ -49,11 +52,13 @@ Pulls bring data from Notion into the local database. This is the **authoritativ
 Pushes send local changes to Notion. These are changes made locally that haven't been synced yet.
 
 **Trigger:**
+
 - After user modifies a todo locally (immediate scheduling)
 - Periodic push cycle (default: 5 minutes)
 - Manual trigger (user-initiated)
 
 **Process:**
+
 1. Query local database for records with `sync_state = pending`
 2. For each pending record:
    - Fetch the current state from Notion
@@ -63,6 +68,7 @@ Pushes send local changes to Notion. These are changes made locally that haven't
 3. If push fails, keep `sync_state = pending` and retry on next cycle
 
 **Conflict Resolution During Push:**
+
 - **Rule:** If Notion has been updated after our last pull, use Notion's version
 - **Step back:** Fetch Notion's current state, merge with local, then re-push if needed
 - **Logging:** Log all conflicts for debugging
@@ -74,11 +80,13 @@ Pushes send local changes to Notion. These are changes made locally that haven't
 ### Startup Sync
 
 **When the backend starts:**
+
 1. Execute a full **Pull** from Notion
 2. Load all courses and todos into local database
 3. Mark sync as complete, set `last_pulled_at = now()`
 
 **Expected behavior:**
+
 - Client waits for sync to complete before showing data
 - If sync fails, retry with exponential backoff (1s, 2s, 4s, max 30s)
 - If all retries fail, show offline mode with cached data
@@ -88,11 +96,13 @@ Pushes send local changes to Notion. These are changes made locally that haven't
 **Default interval:** 5 minutes (configurable)
 
 **Behavior:**
+
 - **Pull Phase:** Fetch from Notion, apply changes locally
 - **Push Phase:** Push pending local changes to Notion
 - Both phases run in sequence; push waits for pull to complete
 
 **During periodic sync:**
+
 - Client continues to work; new local changes are queued
 - If sync is still running when next interval triggers, skip the interval
 - Sync duration is logged for monitoring
@@ -102,6 +112,7 @@ Pushes send local changes to Notion. These are changes made locally that haven't
 **Initiated by:** User action (pull-to-refresh, sync button)
 
 **Behavior:**
+
 - Prioritize this sync over periodic cycles
 - Execute both Pull and Push phases immediately
 - Return status to client (success/failure, number of changes)
@@ -113,6 +124,7 @@ Pushes send local changes to Notion. These are changes made locally that haven't
 ### Timestamp-Based Resolution
 
 Each record has:
+
 - `updated_at` - Last modification timestamp (from Notion, in ISO 8601 UTC)
 - `sync_state` - Local tracking: `pending`, `synced`, `conflict`
 - `local_version` - Incremental version for local-only conflicts
@@ -122,7 +134,8 @@ Each record has:
 **Scenario:** Same record updated both locally and in Notion since last sync
 
 **Resolution:**
-```
+
+```text
 if Notion.updated_at > local.updated_at:
     # Notion is newer
     apply Notion version locally
@@ -143,7 +156,8 @@ else:
 **Scenario:** Attempting to push a local change, but Notion has been updated
 
 **Resolution:**
-```
+
+```text
 if Notion.updated_at > local.last_synced_at:
     # Notion was updated after our last sync
     conflict detected:
@@ -167,7 +181,8 @@ else:
 **Scenario:** Record marked `is_archived = true` locally but `is_archived = false` in Notion, or vice versa
 
 **Resolution:**
-```
+
+```text
 During Pull:
     if local.is_archived != Notion.is_archived:
         apply Notion.is_archived value
@@ -189,6 +204,7 @@ During Push:
 **Scenario:** User edits field A locally, and field B is edited in Notion
 
 **Handling:**
+
 - During next sync, detect that both have changed
 - Treat as field-level merge (see Rule 2 above)
 - Local value for A, Notion value for B
@@ -199,6 +215,7 @@ During Push:
 **Scenario:** Local change is made, push is attempted but fails
 
 **Handling:**
+
 - Keep `sync_state = pending`
 - Retry on next periodic sync or manual trigger
 - Client is informed of pending state via API response
@@ -209,6 +226,7 @@ During Push:
 **Scenario:** No network connectivity
 
 **Handling:**
+
 - Local changes proceed normally, marked `sync_state = pending`
 - Pull operations are skipped; use cached data
 - When connectivity returns, trigger full sync
@@ -220,6 +238,7 @@ During Push:
 **Scenario:** Notion database has thousands of records
 
 **Handling:**
+
 - Use cursor-based pagination (Notion API supports `start_cursor`)
 - Fetch in batches (default: 100 records per request)
 - Process and insert into local DB in transactions
@@ -231,6 +250,7 @@ During Push:
 **Scenario:** Course is marked archived in Notion, but todos still exist
 
 **Handling:**
+
 - During pull, sync courses first
 - When syncing todos, check if parent course is archived
 - If parent course is archived:
@@ -244,7 +264,7 @@ During Push:
 
 Each record has a `sync_state` field with possible values:
 
-```
+```text
 ┌──────────┐
 │ pending  │  Local change waiting to be pushed
 └─────┬────┘
@@ -298,7 +318,7 @@ Special case: Failed push
 
 Expose a debug endpoint to query sync status:
 
-```
+```text
 GET /api/debug/sync-status
 
 Response:
@@ -317,7 +337,7 @@ Response:
 ## Summary
 
 | Aspect | Decision |
-|--------|----------|
+| --- | --- |
 | **Primary Direction** | Pull (Notion → Local) is authoritative |
 | **Conflict Winner** | Notion's version (via timestamp comparison) |
 | **Timing** | Startup + periodic (5 min) + manual |
