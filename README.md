@@ -19,7 +19,7 @@ The system is composed of three main layers: client, backend, and storage.
 
 The following diagram shows how data flows through the system:
 
-```
+```text
     +--------------------------------------------------+
     |                SwiftUI Client                    |
     |                                                  |
@@ -70,6 +70,7 @@ The following diagram shows how data flows through the system:
 Each layer has a clear responsibility.
 
 ### SwiftUI Client
+
 - Renders the user interface
 - Provides fast, native interactions
 - Displays courses and todos
@@ -79,6 +80,7 @@ Each layer has a clear responsibility.
 - Never communicates with Notion directly
 
 ### Rust Sync Engine
+
 - Exposes a local REST API
 - Acts as the central synchronization layer
 - Stores data in a local SQLite database
@@ -86,6 +88,7 @@ Each layer has a clear responsibility.
 - Resolves conflicts between local and remote changes
 
 ### Notion
+
 - Stores authoritative data
 - Manages relations between courses and todos
 - Acts as the single source of truth
@@ -97,11 +100,13 @@ Each layer has a clear responsibility.
 There are two core entities in Taskion.
 
 ### Course
+
 - Represents a class or lecture
 - Stored in a dedicated Notion database
 - Contains metadata such as course name and semester
 
 ### Todo
+
 - Represents an individual task or assignment
 - Stored in a separate Notion database
 - Always belongs to exactly one Course
@@ -126,6 +131,7 @@ Todo
 Synchronization is bidirectional and asynchronous.
 
 ### Notion to Local
+
 1. Fetch courses from the Notion Courses database
 2. Update or create local course records
 3. Fetch todos from the Notion Tasks database
@@ -135,6 +141,7 @@ Synchronization is bidirectional and asynchronous.
 Courses are always synchronized before todos.
 
 ### Local to Notion
+
 1. Apply user changes to the local database immediately
 2. Schedule a synchronization task
 3. Push local changes to Notion
@@ -163,3 +170,12 @@ Courses are always synchronized before todos.
 - The backend only listens on `localhost`
 - Notion API tokens are stored in environment variables
 - No external servers or cloud services are required
+
+## Design Documents
+
+Detailed design documents are available in the `docs/` directory:
+
+- Architecture
+- Data model
+- Synchronization strategy
+- Roadmap
