@@ -1,9 +1,14 @@
+mod routes;
+mod state;
+
 use std::net::SocketAddr;
 
-use axum::{Router, extract::State, http::StatusCode, routing::get};
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
-use tracing::{info, error};
+use sqlx::sqlite::SqlitePoolOptions;
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::routes::router;
+use crate::state::AppState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,8 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState { db: pool.clone() };
 
-    let app = Router::new().route("/health", get(health))
-        .with_state(state);
+    let app = router(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("listening on http://{}", addr);
@@ -36,19 +40,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
-}
-
-#[derive(Clone)]
-struct AppState {
-    db: SqlitePool,
-}
-
-async fn health(State(state): State<AppState>) -> StatusCode {
-    match sqlx::query("select 1").execute(&state.db).await {
-        Ok(_) => StatusCode::OK,
-        Err(err) => {
-            error!("health check failed: {}", err);
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
 }
