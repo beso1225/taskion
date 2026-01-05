@@ -221,3 +221,165 @@ pub async fn archive_todo(db: &SqlitePool, id: &str) -> Result<bool, sqlx::Error
 
     Ok(result > 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite://:memory:")
+            .await
+            .expect("Failed to create test db");
+
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run migrations");
+
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_insert_and_fetch_course() {
+        let pool = setup_test_db().await;
+
+        let req = NewCourseRequest {
+            title: "数学I".to_string(),
+            semester: "2A2".to_string(),
+            day_of_week: "Mon".to_string(),
+            period: 1,
+            room: Some("101".to_string()),
+            instructor: Some("田中先生".to_string()),
+        };
+
+        let course = insert_course(&pool, req).await.expect("Failed to insert course");
+        assert_eq!(course.title, "数学I");
+        assert_eq!(course.sync_state, "pending");
+        assert!(!course.is_archived);
+
+        let courses = fetch_courses(&pool).await.expect("Failed to fetch courses");
+        assert_eq!(courses.len(), 1);
+        assert_eq!(courses[0].id, course.id);
+    }
+
+    #[tokio::test]
+    async fn test_insert_and_fetch_todo() {
+        let pool = setup_test_db().await;
+
+        // まずコースを作成
+        let course_req = NewCourseRequest {
+            title: "数学I".to_string(),
+            semester: "2A2".to_string(),
+            day_of_week: "Mon".to_string(),
+            period: 1,
+            room: None,
+            instructor: None,
+        };
+        let course = insert_course(&pool, course_req)
+            .await
+            .expect("Failed to insert course");
+
+        // TODOを作成
+        let todo_req = NewTodoRequest {
+            course_id: course.id.clone(),
+            title: "宿題1".to_string(),
+            due_date: "2026-01-10".to_string(),
+            status: "未着手".to_string(),
+        };
+        let todo = insert_todo(&pool, todo_req)
+            .await
+            .expect("Failed to insert todo");
+
+        assert_eq!(todo.title, "宿題1");
+        assert_eq!(todo.status, "未着手");
+        assert_eq!(todo.sync_state, "pending");
+        assert!(!todo.is_archived);
+
+        let todos = fetch_todos(&pool).await.expect("Failed to fetch todos");
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].course_id, course.id);
+    }
+
+    #[tokio::test]
+    async fn test_update_todo() {
+        let pool = setup_test_db().await;
+
+        // コース作成
+        let course_req = NewCourseRequest {
+            title: "数学I".to_string(),
+            semester: "2A2".to_string(),
+            day_of_week: "Mon".to_string(),
+            period: 1,
+            room: None,
+            instructor: None,
+        };
+        let course = insert_course(&pool, course_req)
+            .await
+            .expect("Failed to insert course");
+
+        // TODO作成
+        let todo_req = NewTodoRequest {
+            course_id: course.id.clone(),
+            title: "宿題1".to_string(),
+            due_date: "2026-01-10".to_string(),
+            status: "未着手".to_string(),
+        };
+        let todo = insert_todo(&pool, todo_req)
+            .await
+            .expect("Failed to insert todo");
+
+        // TODO更新
+        let update_req = UpdateTodoRequest {
+            title: Some("宿題1修正".to_string()),
+            due_date: None,
+            status: Some("完了".to_string()),
+        };
+        let updated = update_todo(&pool, &todo.id, update_req)
+            .await
+            .expect("Failed to update todo")
+            .expect("Todo not found");
+
+        assert_eq!(updated.title, "宿題1修正");
+        assert_eq!(updated.status, "完了");
+        assert_eq!(updated.sync_state, "pending");
+    }
+
+    #[tokio::test]
+    async fn test_archive_todo() {
+        let pool = setup_test_db().await;
+
+        // コース作成
+        let course_req = NewCourseRequest {
+            title: "数学I".to_string(),
+            semester: "2A2".to_string(),
+            day_of_week: "Mon".to_string(),
+            period: 1,
+            room: None,
+            instructor: None,
+        };
+        let course = insert_course(&pool, course_req)
+            .await
+            .expect("Failed to insert course");
+
+        // TODO作成
+        let todo_req = NewTodoRequest {
+            course_id: course.id.clone(),
+            title: "宿題1".to_string(),
+            due_date: "2026-01-10".to_string(),
+            status: "未着手".to_string(),
+        };
+        let todo = insert_todo(&pool, todo_req)
+            .await
+            .expect("Failed to insert todo");
+
+        // TODO削除（論理削除）
+        let result = archive_todo(&pool, &todo.id)
+            .await
+            .expect("Failed to archive todo");
+        assert!(result);
+
+        // アーカイブ済みTODOは取得されない
+        let todos = fetch_todos(&pool).await.expect("Failed to fetch todos");
+        assert_eq!(todos.len(), 0);
+    }
+}
