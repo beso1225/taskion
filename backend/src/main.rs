@@ -8,14 +8,13 @@ mod sync;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-
 use sqlx::sqlite::SqlitePoolOptions;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::routes::router;
 use crate::state::AppState;
-use crate::notion::{NotionClient, NoopNotionClient};
+use crate::notion::{NotionClient, NoopNotionClient, NotionConfig, NotionHttpClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,7 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let notion_client: Arc<dyn NotionClient> = Arc::new(NoopNotionClient);
+    let notion_client: Arc<dyn NotionClient> = match NotionConfig::new_from_env() {
+        Ok(cfg) => Arc::new(NotionHttpClient::new(cfg)?),
+        Err(e) => {
+            warn!("Notoin config missing or invalid: {}. Falling back to Noop client.", e);
+            Arc::new(NoopNotionClient)
+        }
+    };
     let state = AppState { db: pool.clone(), notion: notion_client };
 
     let app = router(state);
