@@ -1,11 +1,12 @@
 use axum::Json;
 use axum::extract::Path;
-use axum::routing::patch;
+use axum::routing::{patch, post};
 use axum::{Router, extract::State, http::StatusCode, routing::get};
 use tracing::error;
 
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::sync::SyncServie;
 use crate::{models::*, repository};
 
 pub fn router(state: AppState) -> Router {
@@ -15,6 +16,7 @@ pub fn router(state: AppState) -> Router {
         .route("/todos", get(list_todos).post(create_todo))
         .route("/todos/{id}", patch(update_todo))
         .route("/todos/{id}/archive", patch(archive_todo))
+        .route("/sync", post(sync_now))
         .with_state(state)
 }
 
@@ -70,4 +72,10 @@ async fn archive_todo(
     } else {
         Err(AppError::NotFound)
     }
+}
+
+async fn sync_now(State(state): State<AppState>) -> Result<StatusCode, AppError> {
+    let service = SyncServie::new(state.db.clone(), state.notion.clone());
+    service.sync_all().await?;
+    Ok(StatusCode::NO_CONTENT)
 }

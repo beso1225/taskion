@@ -3,8 +3,11 @@ mod models;
 mod repository;
 mod routes;
 mod state;
+mod notion;
+mod sync;
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use sqlx::sqlite::SqlitePoolOptions;
 use tracing::info;
@@ -12,6 +15,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::routes::router;
 use crate::state::AppState;
+use crate::notion::{NotionClient, NoopNotionClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,7 +36,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    let state = AppState { db: pool.clone() };
+    let notion_client: Arc<dyn NotionClient> = Arc::new(NoopNotionClient);
+    let state = AppState { db: pool.clone(), notion: notion_client };
 
     let app = router(state);
 
