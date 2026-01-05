@@ -31,27 +31,32 @@ Define the minimum viable product (MVP) for Taskion to guide initial development
 ## Development Phases
 
 ### Phase 1: Foundation
+
 - [ ] Set up backend (Rust with Actix-web)
 - [ ] Implement local SQLite database schema
 - [ ] Create data model (Course, Todo)
 
 ### Phase 2: Notion Integration
+
 - [ ] Implement Notion API client
 - [ ] Read courses from Notion
 - [ ] Read todos from Notion
 - [ ] Implement bidirectional synchronization
 
 ### Phase 3: Local Operations
+
 - [ ] Implement local todo create/update/delete
 - [ ] Mark todos as completed
 - [ ] Implement sync state management
 
 ### Phase 4: Frontend
+
 - [ ] Build client UI (display tasks)
 - [ ] Implement local changes interface
 - [ ] Add manual sync trigger
 
 ### Phase 5: Polish
+
 - [ ] Error handling and indicators
 - [ ] Testing and bug fixes
 - [ ] Documentation
