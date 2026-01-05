@@ -4,6 +4,7 @@ use axum::routing::patch;
 use axum::{Router, extract::State, http::StatusCode, routing::get};
 use tracing::error;
 
+use crate::error::AppError;
 use crate::state::AppState;
 use crate::{models::*, repository};
 
@@ -17,67 +18,56 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn health(State(state): State<AppState>) -> StatusCode {
-    match sqlx::query("select 1").execute(&state.db).await {
-        Ok(_) => StatusCode::OK,
-        Err(err) => {
-            error!("health check failed: {}", err);
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
+async fn health(State(state): State<AppState>) -> Result<StatusCode, AppError> {
+    sqlx::query("select 1").execute(&state.db).await?;
+    Ok(StatusCode::OK)
 }
 
-async fn list_courses(State(state): State<AppState>) -> Result<Json<Vec<Course>>, StatusCode> {
-    repository::fetch_courses(&state.db)
-        .await
-        .map(Json)
-        .map_err(internal_error)
+async fn list_courses(State(state): State<AppState>) -> Result<Json<Vec<Course>>, AppError> {
+    let courses = repository::fetch_courses(&state.db).await?;
+    Ok(Json(courses))
 }
 
-async fn create_course(State(state): State<AppState>, Json(req): Json<NewCourseRequest>) -> Result<Json<Course>, StatusCode> {
-    repository::insert_course(&state.db, req)
-        .await
-        .map(Json)
-        .map_err(internal_error)
+async fn create_course(
+    State(state): State<AppState>,
+    Json(req): Json<NewCourseRequest>
+) -> Result<Json<Course>, AppError> {
+    let course = repository::insert_course(&state.db, req).await?;
+    Ok(Json(course))
 }
 
-async fn list_todos(State(state): State<AppState>) -> Result<Json<Vec<Todo>>, StatusCode> {
-    repository::fetch_todos(&state.db)
-        .await
-        .map(Json)
-        .map_err(internal_error)
-
+async fn list_todos(State(state): State<AppState>) -> Result<Json<Vec<Todo>>, AppError> {
+    let todos = repository::fetch_todos(&state.db).await?;
+    Ok(Json(todos))
 }
 
-async fn create_todo(State(state): State<AppState>, Json(req): Json<NewTodoRequest>) -> Result<Json<Todo>, StatusCode> {
-    repository::insert_todo(&state.db, req)
-        .await
-        .map(Json)
-        .map_err(internal_error)
+async fn create_todo(
+    State(state): State<AppState>,
+    Json(req): Json<NewTodoRequest>
+) -> Result<Json<Todo>, AppError> {
+    let todo = repository::insert_todo(&state.db, req).await?;
+    Ok(Json(todo))
 }
 
-async fn update_todo(State(state): State<AppState>, Path(id): Path<String>, Json(req): Json<UpdateTodoRequest>) -> Result<Json<Todo>, StatusCode> {
-    match repository::update_todo(&state.db, &id, req)
-        .await
-        .map_err(internal_error)?
-    {
-        Some(todo) => Ok(Json(todo)),
-        None => Err(StatusCode::NOT_FOUND),
-    }
+async fn update_todo(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<UpdateTodoRequest>
+) -> Result<Json<Todo>, AppError> {
+    let todo = repository::update_todo(&state.db, &id, req)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(todo))
 }
 
-async fn archive_todo(State(state): State<AppState>, Path(id): Path<String>) -> Result<StatusCode, StatusCode> {
-    let ok = repository::archive_todo(&state.db, &id)
-        .await
-        .map_err(internal_error)?;
+async fn archive_todo(
+    State(state): State<AppState>,
+    Path(id): Path<String>
+) -> Result<StatusCode, AppError> {
+    let ok = repository::archive_todo(&state.db, &id).await?;
     if ok {
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(StatusCode::NOT_FOUND)
+        Err(AppError::NotFound)
     }
-}
-
-fn internal_error(err: impl std::fmt::Display) -> StatusCode {
-    error!("internal error: {}", err);
-    StatusCode::INTERNAL_SERVER_ERROR
 }
