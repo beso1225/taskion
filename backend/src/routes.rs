@@ -6,7 +6,7 @@ use tracing::error;
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::sync::SyncServie;
+use crate::sync::SyncService;
 use crate::{models::*, repository};
 
 pub fn router(state: AppState) -> Router {
@@ -75,7 +75,7 @@ async fn archive_todo(
 }
 
 async fn sync_now(State(state): State<AppState>) -> Result<StatusCode, AppError> {
-    let service = SyncServie::new(state.db.clone(), state.notion.clone());
+    let service = SyncService::new(state.db.clone(), state.notion.clone());
     service.sync_all().await?;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -4,12 +4,12 @@ use sqlx::SqlitePool;
 
 use crate::{error::AppError, notion::NotionClient};
 
-pub struct SyncServie {
+pub struct SyncService {
     db: SqlitePool,
     notion: Arc<dyn NotionClient>,
 }
 
-impl SyncServie {
+impl SyncService {
     pub fn new(db: SqlitePool, notion: Arc<dyn NotionClient>) -> Self {
         Self { db, notion }
     }
