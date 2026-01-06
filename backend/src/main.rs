@@ -18,6 +18,8 @@ use crate::notion::{NotionClient, NoopNotionClient, NotionConfig, NotionHttpClie
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_else(|_| "backend=debug".to_string()),

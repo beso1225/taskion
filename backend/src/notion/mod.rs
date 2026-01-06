@@ -78,25 +78,43 @@ impl NotionHttpClient {
             return Err(AppError::BadRequest(format!("Notion API error {}: {}", status, body)));
         }
 
-        response
-            .json::<dto::QueryDatabaseResponse>()
-            .await
-            .map_err(|e| AppError::BadRequest(format!("Failed to parse Notion response: {}", e)))
+        let body_text = response.text().await.unwrap_or_default();
+        let filename = if database_id == &self.config.courses_db_id {
+            "notion_courses_response.json"
+        } else {
+            "notion_todos_response.json"
+        };
+
+        use std::fs;
+        fs::write(filename, &body_text).ok();
+        tracing::info!("Notion response saved to {}", filename);
+
+        serde_json::from_str::<dto::QueryDatabaseResponse>(&body_text)
+        .map_err(|e| {
+            tracing::error!("Failed to parse: {}", e);
+            AppError::BadRequest(format!("Failed to parse Notion response: {}", e))
+        })
     }
 
     async fn parse_coourse_from_page(&self, page: &dto::Page) -> Result<crate::models::Course, AppError> {
+        let id = self.get_property_text(page, "course_id").unwrap_or_else(|_| page.id.clone());
         let title = self.get_property_text(page, "Name")?;
-        let semester = self.get_property_text(page, "Semester").unwrap_or_else(|_| "".to_string());
-        let day_of_week = self.get_property_text(page, "Day").unwrap_or_else(|_| "".to_string());
-        let period = self.get_property_number(page, "Period")
-            .and_then(|n| u32::try_from(n as u32).ok())
-            .map(|n| n as i32)
+        let semester = self.get_property_multi_select(page, "Semester")
+            .map(|items| items.join(", "))
+            .unwrap_or_else(|_| "".to_string());
+        let day_of_week = self.get_property_select(page, "Day").unwrap_or_else(|_| "".to_string());
+        let period = self.get_property_multi_select(page, "Period")
+            .ok()
+            .and_then(|items| items.first().cloned())
+            .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
         let room = self.get_property_text(page, "Room").ok();
-        let instructor = self.get_property_text(page, "Instructor").ok();
+        let instructor = self.get_property_multi_select(page, "Instructor")
+            .map(|items| items.join(", "))
+            .ok();
 
         Ok(crate::models::Course {
-            id: page.id.clone(),
+            id: id,
             title,
             semester,
             day_of_week,
@@ -111,22 +129,45 @@ impl NotionHttpClient {
     }
 
     async fn parse_todo_from_page(&self, page: &dto::Page) -> Result<crate::models::Todo, AppError> {
+        // todo_id を rich_text から取得、なければ page.id を使用
+        let id = self.get_property_text(page, "todo_id")
+            .unwrap_or_else(|_| page.id.clone());
+        
+        // Title (title プロパティ)
         let title = self.get_property_text(page, "Title")?;
+        
+        // Due Date (date プロパティ)
         let due_date = self.get_property_date(page, "Due Date")
             .unwrap_or_else(|_| chrono::Local::now().format("%Y-%m-%d").to_string());
-        let status = self.get_property_text(page, "Status")
+        
+        // Status (status プロパティ)
+        let status = self.get_property_status(page, "Status")
             .unwrap_or_else(|_| "未着手".to_string());
+        
+        // Course (relation プロパティ) - 最初の関連 course_id
         let course_id = self.get_property_relation(page, "Course")
             .unwrap_or_else(|_| "".to_string());
+        
+        // completed_at (date プロパティ)
+        let completed_at = self.get_property_date(page, "completed_at").ok();
+        
+        // is_archived (checkbox プロパティ、なければ page.archived)
+        let is_archived = page.properties
+            .get("is_archived")
+            .and_then(|prop| match prop {
+                dto::Property::Checkbox { checkbox } => Some(*checkbox),
+                _ => None,
+            })
+            .unwrap_or(page.archived);
 
         Ok(crate::models::Todo {
-            id: page.id.clone(),
+            id,
             course_id,
             title,
             due_date,
             status,
-            completed_at: None,
-            is_archived: page.archived,
+            completed_at,
+            is_archived,
             updated_at: page.last_edited_time.clone(),
             sync_state: "synced".to_string(),
             last_synced_at: Some(Utc::now().to_rfc3339()),
@@ -179,6 +220,41 @@ impl NotionHttpClient {
                 dto::Property::Number { number } => *number,
                 _ => None,
             })
+    }
+
+    fn get_property_status(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Status { status } => {
+                    status.as_ref().map(|s| s.name.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing status property: {}", key)))
+    }
+    fn get_property_select(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Select { select } => {
+                    select.as_ref().map(|s| s.name.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing select property: {}", key)))
+    }
+
+    fn get_property_multi_select(&self, page: &dto::Page, key: &str) -> Result<Vec<String>, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::MultiSelect { multi_select } => {
+                    Some(multi_select.iter().map(|s| s.name.clone()).collect())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing multi_select property: {}", key)))
     }
 }
 

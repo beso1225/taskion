@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub struct QueryDatabaseResponse {
     pub results: Vec<Page>,
     pub has_more: bool,
+    #[serde(default)]
     pub next_cursor: Option<String>,
 }
 
@@ -28,6 +29,11 @@ pub enum Property {
     Date { date: Option<DateValue> },
     Checkbox { checkbox: bool },
     Relation { relation: Vec<Relation> },
+    Url { url: Option<String> },
+    LastEditedTime { last_edited_time: String },
+    Status { status: Option<SelectOption> },
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +49,7 @@ pub struct SelectOption {
 #[derive(Debug, Deserialize)]
 pub struct DateValue {
     pub start: String,
+    #[serde(default)]
     pub end: Option<String>,
 }
 

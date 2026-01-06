@@ -139,6 +139,7 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "dotenvy",
  "reqwest",
  "serde",
  "serde_json",
