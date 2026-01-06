@@ -27,7 +27,7 @@ impl SyncService {
         let courses = self.notion.fetch_courses().await?;
         for course in courses {
             info!("Upserting course: {}", course.title);
-            // TODO: upsert course into local database
+            repository::upsert_course(&self.db, &course).await?;
         }
         Ok(())
     }
@@ -37,7 +37,7 @@ impl SyncService {
 
         for todo in todos {
             info!("Upserting todo: {}", todo.title);
-            // TODO: upsert todo into local database
+            repository::upsert_todo(&self.db, &todo).await?;
         }
         Ok(())
     }

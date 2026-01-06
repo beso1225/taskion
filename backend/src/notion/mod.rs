@@ -110,6 +110,53 @@ impl NotionHttpClient {
         })
     }
 
+    async fn parse_todo_from_page(&self, page: &dto::Page) -> Result<crate::models::Todo, AppError> {
+        let title = self.get_property_text(page, "Title")?;
+        let due_date = self.get_property_date(page, "Due Date")
+            .unwrap_or_else(|_| chrono::Local::now().format("%Y-%m-%d").to_string());
+        let status = self.get_property_text(page, "Status")
+            .unwrap_or_else(|_| "未着手".to_string());
+        let course_id = self.get_property_relation(page, "Course")
+            .unwrap_or_else(|_| "".to_string());
+
+        Ok(crate::models::Todo {
+            id: page.id.clone(),
+            course_id,
+            title,
+            due_date,
+            status,
+            completed_at: None,
+            is_archived: page.archived,
+            updated_at: page.last_edited_time.clone(),
+            sync_state: "synced".to_string(),
+            last_synced_at: Some(Utc::now().to_rfc3339()),
+        })
+    }
+
+    fn get_property_date(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Date { date } => {
+                    date.as_ref().map(|d| d.start.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing date property: {}", key)))
+    }
+
+    fn get_property_relation(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Relation { relation } => {
+                    relation.first().map(|r| r.id.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing relation property: {}", key)))
+    }
+
     fn get_property_text(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
         page.properties
             .get(key)
@@ -153,8 +200,19 @@ impl NotionClient for NotionHttpClient {
     }
 
     async fn fetch_todos(&self) -> Result<Vec<crate::models::Todo>, AppError> {
-        // TODO: 実装
-        Ok(Vec::new())
+        let response = self.query_database(&self.config.todos_db_id).await?;
+        let mut todos = Vec::new();
+
+        for page in response.results {
+            match self.parse_todo_from_page(&page).await {
+                Ok(todo) => todos.push(todo),
+                Err(e) => {
+                    tracing::warn!("Failed to parse todo from page {}: {}", page.id, e);
+                }
+            }
+        }
+
+        Ok(todos)
     }
 
     async fn push_course(&self, _course: &crate::models::Course) -> Result<(), AppError> {

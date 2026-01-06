@@ -222,6 +222,114 @@ pub async fn archive_todo(db: &SqlitePool, id: &str) -> Result<bool, sqlx::Error
     Ok(result > 0)
 }
 
+pub async fn find_course_by_id(db: &SqlitePool, id: &str) -> Result<Option<Course>, sqlx::Error> {
+    sqlx::query_as::<_, Course>(
+        "SELECT id, title, semester, day_of_week, period, room, instructor, is_archived, updated_at, sync_state, last_synced_at FROM courses WHERE id = ?"
+    )
+    .bind(id)
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn upsert_course(db: &SqlitePool, course: &Course) -> Result<Course, sqlx::Error> {
+    match find_course_by_id(db, &course.id).await? {
+        Some(_) => {
+            // Update
+            sqlx::query(
+                "UPDATE courses SET title = ?, semester = ?, day_of_week = ?, period = ?, room = ?, instructor = ?, is_archived = ?, updated_at = ?, sync_state = ?, last_synced_at = ? WHERE id = ?"
+            )
+            .bind(&course.title)
+            .bind(&course.semester)
+            .bind(&course.day_of_week)
+            .bind(course.period)
+            .bind(&course.room)
+            .bind(&course.instructor)
+            .bind(course.is_archived)
+            .bind(&course.updated_at)
+            .bind(&course.sync_state)
+            .bind(&course.last_synced_at)
+            .bind(&course.id)
+            .execute(db)
+            .await?;
+        }
+        None => {
+            // Insert
+            sqlx::query(
+                "INSERT INTO courses (id, title, semester, day_of_week, period, room, instructor, is_archived, updated_at, sync_state, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(&course.id)
+            .bind(&course.title)
+            .bind(&course.semester)
+            .bind(&course.day_of_week)
+            .bind(course.period)
+            .bind(&course.room)
+            .bind(&course.instructor)
+            .bind(course.is_archived)
+            .bind(&course.updated_at)
+            .bind(&course.sync_state)
+            .bind(&course.last_synced_at)
+            .execute(db)
+            .await?;
+        }
+    }
+
+    find_course_by_id(db, &course.id)
+        .await?
+        .ok_or_else(|| sqlx::Error::RowNotFound)
+}
+
+pub async fn find_todo_by_id(db: &SqlitePool, id: &str) -> Result<Option<Todo>, sqlx::Error> {
+    sqlx::query_as::<_, Todo>(
+        "SELECT id, course_id, title, due_date, status, completed_at, is_archived, updated_at, sync_state, last_synced_at FROM todos WHERE id = ?"
+    )
+    .bind(id)
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn upsert_todo(db: &SqlitePool, todo: &Todo) -> Result<Todo, sqlx::Error> {
+    match find_todo_by_id(db, &todo.id).await? {
+        Some(_) => {
+            sqlx::query(
+                "UPDATE todos SET course_id = ?, title = ?, due_date = ?, status = ?, completed_at = ?, is_archived = ?, updated_at = ?, sync_state = ?, last_synced_at = ? WHERE id = ?"
+            )
+            .bind(&todo.course_id)
+            .bind(&todo.title)
+            .bind(&todo.due_date)
+            .bind(&todo.status)
+            .bind(&todo.completed_at)
+            .bind(todo.is_archived)
+            .bind(&todo.updated_at)
+            .bind(&todo.sync_state)
+            .bind(&todo.last_synced_at)
+            .bind(&todo.id)
+            .execute(db)
+            .await?;
+        }
+        None => {
+            sqlx::query(
+                "INSERT INTO todos (id, course_id, title, due_date, status, completed_at, is_archived, updated_at, sync_state, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(&todo.id)
+            .bind(&todo.course_id)
+            .bind(&todo.title)
+            .bind(&todo.due_date)
+            .bind(&todo.status)
+            .bind(&todo.completed_at)
+            .bind(todo.is_archived)
+            .bind(&todo.updated_at)
+            .bind(&todo.sync_state)
+            .bind(&todo.last_synced_at)
+            .execute(db)
+            .await?;
+        }
+    }
+
+    find_todo_by_id(db, &todo.id)
+        .await?
+        .ok_or_else(|| sqlx::Error::RowNotFound)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
