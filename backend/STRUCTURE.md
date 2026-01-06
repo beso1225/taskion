@@ -1,6 +1,6 @@
 # Backend Structure
 
-```
+```text
 src/
 ├── api/                      # REST API エンドポイント
 │   └── mod.rs               # ルーター定義、ハンドラー実装
@@ -43,11 +43,13 @@ tests/
 ## モジュール概要
 
 ### `api/mod.rs`
+
 - REST API ルーター定義
 - ハンドラー: `list_courses`, `create_course`, `list_todos`, `create_todo`, `update_todo`, `archive_todo`, `sync_now`
 - 依存: `models`, `db::repository`, `services::SyncService`
 
 ### `db/repository.rs`
+
 - CRUD 操作のリポジトリパターン実装
 - 関数:
   - `fetch_courses()`, `insert_course()`, `find_course_by_id()`, `upsert_course()`
@@ -55,11 +57,13 @@ tests/
 - 依存: `models`
 
 ### `models/{course,todo}.rs`
+
 - データ定義
 - `Course`, `NewCourseRequest`
 - `Todo`, `NewTodoRequest`, `UpdateTodoRequest`
 
 ### `services/sync_service.rs`
+
 - 双方向同期エンジン
 - `SyncService::sync_all()` メソッド:
   1. Push: ローカル pending → Notion
@@ -68,20 +72,24 @@ tests/
 - `SyncStats`: 同期統計
 
 ### `services/scheduler.rs`
+
 - 自動同期スケジューラー
 - `SyncScheduler::start()`: 定期実行のメイン loop
 - 環境変数: `SYNC_INTERVAL_SECS` (秒単位、デフォルト: 300)
 
 ### `notion/mod.rs`
+
 - Notion API クライアント trait 定義
 - 実装: `NotionHttpClient`
 - 機能: `fetch_courses()`, `fetch_todos()`, `push_course()`, `push_todo()`
 
 ### `error.rs`
+
 - `AppError` enum: Database, NotFound, BadRequest, Conflict, InternalServerError
 - `ErrorResponse`: JSON error response
 
 ### `state.rs`
+
 - `AppState`: db pool, notion client の状態管理
 
 ## 使用方法

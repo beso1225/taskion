@@ -9,7 +9,7 @@
 ## テスト構成サマリー
 
 | カテゴリ | ファイル | テスト数 | 状態 |
-|---------|---------|---------|------|
+| ------- | ------- | ------- | ---- |
 | **単体テスト** | `src/services/sync_service.rs` | 5 | ✅ Pass |
 | **統合テスト** | `tests/scheduler_test.rs` | 2 | ✅ Pass |
 | **統合テスト** | `tests/notion_integration_test.rs` | 4 | 🔄 Ignored (手動実行) |
@@ -20,7 +20,7 @@
 
 ### ファイル: `src/services/sync_service.rs`
 
-#### 依存関係マップ
+#### 依存関係マップ (sync_service)
 
 ```rust
 use std::sync::Arc;
@@ -42,17 +42,17 @@ mod tests {
 }
 ```
 
-#### テスト一覧と依存
+#### テスト一覧と依存 (sync_service tests)
 
 | # | テスト名 | 主な依存 | 検証内容 |
-|---|---------|---------|---------|
-| 1 | `test_push_local_pending_course` | `repository::insert_course`<br/>`repository::fetch_courses`<br/>`NoopNotionClient` | pending → synced 更新 |
-| 2 | `test_pull_preserves_local_pending_course` | `repository::find_course_by_id`<br/>`SyncService::sync_courses_from_notion` | pending 保護 |
-| 3 | `test_push_skips_already_synced_course` | `repository::insert_course`<br/>`repository::find_course_by_id` | synced スキップ |
-| 4 | `test_sync_all_push_then_pull_order` | `SyncService::sync_all`<br/>`repository::insert_course` | 完全サイクル |
+| --- | -------- | --------- | --------- |
+| 1 | `test_push_local_pending_course` | `repository::insert_course`, `repository::fetch_courses`, `NoopNotionClient` | pending → synced 更新 |
+| 2 | `test_pull_preserves_local_pending_course` | `repository::find_course_by_id`, `SyncService::sync_courses_from_notion` | pending 保護 |
+| 3 | `test_push_skips_already_synced_course` | `repository::insert_course`, `repository::find_course_by_id` | synced スキップ |
+| 4 | `test_sync_all_push_then_pull_order` | `SyncService::sync_all`, `repository::insert_course` | 完全サイクル |
 | 5 | `test_archive_course_not_in_notion` | `SyncService::sync_courses_from_notion` | 自動アーカイブ |
 
-#### 実行結果
+#### 実行結果 (sync_service)
 
 ```bash
 $ cargo test --lib
@@ -75,7 +75,7 @@ test result: ok. 5 passed; 0 failed; 0 ignored
 
 ### ファイル: `tests/scheduler_test.rs`
 
-#### 依存関係マップ
+#### 依存関係マップ (scheduler)
 
 ```rust
 use std::sync::Arc;
@@ -87,14 +87,14 @@ use backend::notion::NoopNotionClient; // ✅ モッククライアント
 use sqlx::SqlitePool;
 ```
 
-#### テスト一覧と依存
+#### テスト一覧と依存 (scheduler tests)
 
 | # | テスト名 | 主な依存 | 検証内容 |
-|---|---------|---------|---------|
-| 1 | `test_scheduler_initialization` | `SyncScheduler::new`<br/>`SqlitePool` | インスタンス生成 |
-| 2 | `test_scheduler_short_interval` | `SyncScheduler::start`<br/>`tokio::spawn` | 定期実行 (1秒間隔) |
+| --- | --------- | --------- | --------- |
+| 1 | `test_scheduler_initialization` | `SyncScheduler::new`, `SqlitePool` | インスタンス生成 |
+| 2 | `test_scheduler_short_interval` | `SyncScheduler::start`, `tokio::spawn` | 定期実行 (1秒間隔) |
 
-#### 実行結果
+#### 実行結果 (scheduler)
 
 ```bash
 $ cargo test --test scheduler_test
@@ -108,7 +108,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored
 
 ✅ **ステータス**: 全テスト Pass
 
-#### 再構成での変更点
+#### Scheduler での変更点
 
 **Before (feature/notion-sync)**:
 
@@ -141,14 +141,14 @@ use backend::{
 use sqlx::SqlitePool;
 ```
 
-#### テスト一覧と依存
+#### テスト一覧と依存 (notion integration tests)
 
-| # | テスト名 | 主な依存 | 検証内容 |
-|---|---------|---------|---------|
-| 1 | `test_push_course_to_notion` | `NotionHttpClient`<br/>`push_course` | 実際の Push |
-| 2 | `test_push_course_title_update` | `NotionHttpClient`<br/>`push_course` | 更新 Push |
-| 3 | `test_fetch_and_verify_courses_from_notion` | `NotionHttpClient`<br/>`fetch_courses` | 37 コース取得 |
-| 4 | `test_push_and_pull_roundtrip` | `NotionHttpClient`<br/>`push_course`<br/>`fetch_courses` | 往復同期 |
+| # | テス  ト名 | 主な依存 | 検証内容 |
+| --- | --------- | --------- | --------- |
+| 1 | `test_push_course_to_notion` | `NotionHttpClient`, `push_course` | 実際の Push |
+| 2 | `test_push_course_title_update` | `NotionHttpClient`, `push_course` | 更新 Push |
+| 3 | `test_fetch_and_verify_courses_from_notion` | `NotionHttpClient`, `fetch_courses` | 37 コース取得 |
+| 4 | `test_push_and_pull_roundtrip` | `NotionHttpClient`, `push_course`, `fetch_courses` | 往復同期 |
 
 #### 実行結果
 
@@ -189,7 +189,7 @@ use backend::models::{Course, NewCourseRequest};
 
 ### 単体テスト (`src/services/sync_service.rs`)
 
-```
+```text
 sync_service::tests
     ├── SyncService (同モジュール)
     ├── repository (crate::db::repository)
@@ -204,7 +204,7 @@ sync_service::tests
 
 ### 統合テスト - Scheduler
 
-```
+```text
 tests/scheduler_test.rs
     ├── backend::services::SyncScheduler
     ├── backend::notion::NoopNotionClient
@@ -213,7 +213,7 @@ tests/scheduler_test.rs
 
 ### 統合テスト - Notion API
 
-```
+```text
 tests/notion_integration_test.rs
     ├── backend::models::{Course, NewCourseRequest}
     ├── backend::notion::
@@ -230,7 +230,7 @@ tests/notion_integration_test.rs
 ### ✅ 正常に動作している依存
 
 | 旧パス | 新パス | 影響 |
-|--------|--------|------|
+| -------- | -------- | ------ |
 | `crate::repository` | `crate::db::repository` | ✅ 単体テストで正常動作 |
 | `crate::sync::SyncService` | `crate::services::SyncService` | ✅ 内部で正常動作 |
 | `crate::scheduler::SyncScheduler` | `crate::services::SyncScheduler` | ✅ 統合テストで正常動作 |
@@ -248,7 +248,7 @@ tests/notion_integration_test.rs
 ## テストカバレッジ
 
 | モジュール | テスト数 | カバレッジ |
-|-----------|---------|-----------|
+| ----------- | --------- | ----------- |
 | `services::sync_service` | 5 | Push/Pull/Archive 全機能 |
 | `services::scheduler` | 2 | 初期化/定期実行 |
 | `notion` (統合) | 4 | Notion API 連携全機能 |

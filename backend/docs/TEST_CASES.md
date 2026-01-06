@@ -3,6 +3,7 @@
 ## Unit Tests (src/sync/mod.rs の tests モジュール)
 
 ### 1. **test_push_local_pending_course** ✅
+
 **カテゴリ**: Push 機能テスト  
 **目的**: pending 状態のコースを Notion に Push できるか
 
@@ -24,6 +25,7 @@
 ---
 
 ### 2. **test_pull_preserves_local_pending_course** ✅
+
 **カテゴリ**: Pull 機能テスト（競合検出）  
 **目的**: Pull 時にローカル pending を保護できるか
 
@@ -44,6 +46,7 @@
 ---
 
 ### 3. **test_push_skips_already_synced_course** ✅
+
 **カテゴリ**: Push 機能テスト（重複排除）  
 **目的**: 既に synced 状態のコースは Push しない
 
@@ -65,6 +68,7 @@
 ---
 
 ### 4. **test_sync_all_push_then_pull_order** ✅
+
 **カテゴリ**: 完全なサイクルテスト  
 **目的**: Push → Pull の順序で正しく動作するか
 
@@ -86,6 +90,7 @@
 ---
 
 ### 5. **test_archive_course_not_in_notion** ✅
+
 **カテゴリ**: アーカイブ機能テスト  
 **目的**: Notion にないローカルレコードが自動アーカイブされるか
 
@@ -108,6 +113,7 @@
 ## 統合テスト (tests/notion_integration_test.rs)
 
 ### 6. **test_push_course_to_notion** 🔄
+
 **カテゴリ**: 実際の Notion API との連携  
 **目的**: コースを Notion に実際に Push できるか
 
@@ -133,6 +139,7 @@ cargo test test_push_course_to_notion -- --ignored --nocapture
 ---
 
 ### 7. **test_push_course_title_update** 🔄
+
 **カテゴリ**: 実際の Notion API での更新  
 **目的**: 既存コースを更新して Push できるか
 
@@ -157,6 +164,7 @@ cargo test test_push_course_title_update -- --ignored --nocapture
 ---
 
 ### 8. **test_fetch_and_verify_courses_from_notion** ✅
+
 **カテゴリ**: 実際の Notion からの取得  
 **目的**: Notion から全コースを正確に取得できるか
 
@@ -187,6 +195,7 @@ cargo test test_fetch_and_verify_courses_from_notion -- --ignored --nocapture
 ---
 
 ### 9. **test_push_and_pull_roundtrip** ✅
+
 **カテゴリ**: 実際の往復同期テスト（最重要）  
 **目的**: ローカル変更 → Push → Pull の全サイクルが機能するか
 
@@ -209,7 +218,7 @@ cargo test test_fetch_and_verify_courses_from_notion -- --ignored --nocapture
 
 **実行結果**: Pass ✅
 
-```
+```text
 Step 4: Pushed modified course - Ok(())
 Step 5: Verified - Title: Modified - 1767687013, Instructor: New Instructor
 ✓ Roundtrip test successful!
@@ -226,21 +235,25 @@ cargo test test_push_and_pull_roundtrip -- --ignored --nocapture
 ## テスト実行コマンド
 
 ### Unit Tests のみ実行
+
 ```bash
 cargo test --lib sync::tests
 ```
 
 ### 全統合テストを実行
+
 ```bash
 cargo test --test notion_integration_test -- --ignored --nocapture
 ```
 
 ### 特定テストのみ実行
+
 ```bash
 cargo test test_push_and_pull_roundtrip -- --ignored --nocapture
 ```
 
 ### 全テスト実行（Unit + 統合）
+
 ```bash
 cargo test -- --include-ignored
 ```
@@ -250,7 +263,7 @@ cargo test -- --include-ignored
 ## テストカバレッジ
 
 | 機能 | テスト | 状態 |
-|------|--------|------|
+| ------ | -------- | ------ |
 | **Push** | test_push_local_pending_course | ✅ |
 | | test_push_skips_already_synced_course | ✅ |
 | | test_push_course_to_notion | ✅ |
