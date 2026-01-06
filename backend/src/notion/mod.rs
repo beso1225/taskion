@@ -97,7 +97,7 @@ impl NotionHttpClient {
     }
 
     async fn parse_coourse_from_page(&self, page: &dto::Page) -> Result<crate::models::Course, AppError> {
-        let id = self.get_property_text(page, "course_id").unwrap_or_else(|_| page.id.clone());
+        let id = page.id.clone();
         let title = self.get_property_text(page, "Name")?;
         let semester = self.get_property_multi_select(page, "Semester")
             .map(|items| items.join(", "))
@@ -129,29 +129,22 @@ impl NotionHttpClient {
     }
 
     async fn parse_todo_from_page(&self, page: &dto::Page) -> Result<crate::models::Todo, AppError> {
-        // todo_id を rich_text から取得、なければ page.id を使用
         let id = self.get_property_text(page, "todo_id")
             .unwrap_or_else(|_| page.id.clone());
         
-        // Title (title プロパティ)
         let title = self.get_property_text(page, "Title")?;
         
-        // Due Date (date プロパティ)
         let due_date = self.get_property_date(page, "Due Date")
             .unwrap_or_else(|_| chrono::Local::now().format("%Y-%m-%d").to_string());
         
-        // Status (status プロパティ)
         let status = self.get_property_status(page, "Status")
             .unwrap_or_else(|_| "未着手".to_string());
         
-        // Course (relation プロパティ) - 最初の関連 course_id
         let course_id = self.get_property_relation(page, "Course")
             .unwrap_or_else(|_| "".to_string());
         
-        // completed_at (date プロパティ)
         let completed_at = self.get_property_date(page, "completed_at").ok();
         
-        // is_archived (checkbox プロパティ、なければ page.archived)
         let is_archived = page.properties
             .get("is_archived")
             .and_then(|prop| match prop {
@@ -291,13 +284,120 @@ impl NotionClient for NotionHttpClient {
         Ok(todos)
     }
 
-    async fn push_course(&self, _course: &crate::models::Course) -> Result<(), AppError> {
-        // TODO: Notion に course を push
+    async fn push_course(&self, course: &crate::models::Course) -> Result<(), AppError> {
+        let url = format!("https://api.notion.com/v1/pages/{}", course.id);
+
+        let mut properties = serde_json::json!({});
+
+        properties["Name"] = serde_json::json!({
+            "title": [{
+                "text": {
+                    "content": course.title
+                }
+            }]
+        });
+
+        let semester_items: Vec<serde_json::Value> = course.semester
+            .split(", ")
+            .map(|s| serde_json::json!({ "name": s.trim() }))
+            .collect();
+        properties["Semester"] = serde_json::json!({
+            "multi_select": semester_items
+        });
+
+        if !course.day_of_week.is_empty() {
+            properties["Day"] = serde_json::json!({
+                "select": { "name": course.day_of_week }
+            });
+        }
+
+        if course.period > 0 {
+            properties["Period"] = serde_json::json!({
+                "multi_select": [{ "name": course.period.to_string() }]
+            });
+        }
+
+        if let Some(room) = &course.room {
+            properties["Room"] = serde_json::json!({
+                "rich_text": [{
+                    "text": { "content": room }
+                }]
+            });
+        }
+
+        if let Some(instructor) = &course.instructor {
+            let instructor_items: Vec<serde_json::Value> = instructor
+                .split(", ")
+                .map(|s| serde_json::json!({ "name": s.trim() }))
+                .collect();
+            properties["Instructor"] = serde_json::json!({
+                "multi_select": instructor_items
+            });
+        }
+
+        let request_body = dto::UpdatePageRequest { properties };
+
+        let response = self.client
+            .patch(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_token))
+            .header("Notion-Version", "2022-06-28")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalServerError)?;
+
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        
+        tracing::info!("Notion API response: {} - {}", status, body);
+
+        if !status.is_success() {
+            return Err(AppError::BadRequest(format!("Failed to push course to Notion: {} {}", status, body)));
+        }
+
         Ok(())
     }
 
-    async fn push_todo(&self, _todo: &crate::models::Todo) -> Result<(), AppError> {
-        // TODO: Notion に todo を push
+    async fn push_todo(&self, todo: &crate::models::Todo) -> Result<(), AppError> {
+        let url = format!("https://api.notion.com/v1/pages/{}", todo.id);
+
+        let mut properties = serde_json::json!({});
+
+        properties["Title"] = serde_json::json!({
+            "title": [{
+                "text": {
+                    "content": todo.title
+                }
+            }]
+        });
+
+        properties["Due Date"] = serde_json::json!({
+            "date": {
+                "start": todo.due_date
+            }
+        });
+
+        properties["Status"] = serde_json::json!({
+            "status": { "name": todo.status }
+        });
+
+        let request_body = dto::UpdatePageRequest { properties };
+
+        let response = self.client
+            .patch(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_token))
+            .header("Notion-Version", "2022-06-28")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalServerError)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::BadRequest(format!("Failed to push todo to Notion: {} {}", status, body)));
+        }
+
         Ok(())
     }
 }

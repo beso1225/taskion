@@ -69,3 +69,8 @@ pub struct QueryDatabaseRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_size: Option<u32>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct UpdatePageRequest {
+    pub properties: serde_json::Value,
+}
