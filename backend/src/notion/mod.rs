@@ -1,3 +1,5 @@
+pub mod dto;
+
 use std::env;
 
 use async_trait::async_trait;
@@ -47,6 +49,37 @@ impl NotionHttpClient {
             .build()
             .map_err(|e| AppError::BadRequest(format!("Failed to build http client: {}", e)))?;
         Ok(Self { client, config })
+    }
+
+    async fn query_database(&self, database_id: &str) -> Result<dto::QueryDatabaseResponse, AppError> {
+        let url = format!("https://api.notion.com/v1/databases/{}/query", database_id);
+
+        let request_body = dto::QueryDatabaseRequest {
+            filter: None,
+            sorts: None,
+            start_cursor: None,
+            page_size: Some(100),
+        };
+
+        let response = self.client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_token))
+            .header("Notion-Version", "2022-06-28")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| AppError::InternalServerError)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::BadRequest(format!("Notion API error {}: {}", status, body)));
+        }
+
+        response
+            .json::<dto::QueryDatabaseResponse>()
+            .await
+            .map_err(|e| AppError::BadRequest(format!("Failed to parse Notion response: {}", e)))
     }
 }
 
