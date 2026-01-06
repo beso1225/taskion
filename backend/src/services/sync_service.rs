@@ -4,7 +4,8 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use tracing::{info, warn};
 
-use crate::{error::AppError, notion::NotionClient, repository};
+use crate::{error::AppError, notion::NotionClient};
+use crate::db::repository;
 
 pub struct SyncService {
     db: SqlitePool,
@@ -225,7 +226,7 @@ fn parse_timestamp(ts: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 mod tests {
     use super::*;
     use crate::{
-        models::{Course, NewCourseRequest, Todo, NewTodoRequest},
+        models::{NewCourseRequest},
         notion::NoopNotionClient,
     };
     use sqlx::SqlitePool;
