@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use backend::scheduler::SyncScheduler;
+use backend::services::SyncScheduler;
 use backend::notion::NoopNotionClient;
 use sqlx::SqlitePool;
 

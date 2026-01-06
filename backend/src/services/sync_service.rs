@@ -221,3 +221,271 @@ fn parse_timestamp(ts: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         .ok()
         .map(|dt| dt.with_timezone(&chrono::Utc))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::{NewCourseRequest},
+        notion::NoopNotionClient,
+    };
+    use sqlx::SqlitePool;
+
+    async fn setup_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:")
+            .await
+            .expect("Failed to create in-memory database");
+
+        sqlx::query(
+            r#"
+            CREATE TABLE courses (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                semester TEXT NOT NULL,
+                day_of_week TEXT NOT NULL,
+                period INTEGER NOT NULL,
+                room TEXT,
+                instructor TEXT,
+                is_archived INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                sync_state TEXT NOT NULL CHECK(sync_state IN ('pending', 'synced')) DEFAULT 'pending',
+                last_synced_at TEXT
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to create courses table");
+
+        sqlx::query(
+            r#"
+            CREATE TABLE todos (
+                id TEXT PRIMARY KEY,
+                course_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                due_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                completed_at TEXT,
+                is_archived INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                sync_state TEXT NOT NULL CHECK(sync_state IN ('pending', 'synced')) DEFAULT 'pending',
+                last_synced_at TEXT,
+                FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to create todos table");
+
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_push_local_pending_course() {
+        let db = setup_db().await;
+        let notion = Arc::new(NoopNotionClient);
+        let sync = SyncService::new(db.clone(), notion);
+
+        let req = NewCourseRequest {
+            title: "Rust Programming".to_string(),
+            semester: "Spring".to_string(),
+            day_of_week: "Monday".to_string(),
+            period: 1,
+            room: Some("A101".to_string()),
+            instructor: Some("Prof. Smith".to_string()),
+        };
+
+        repository::insert_course(&db, req)
+            .await
+            .expect("Failed to insert course");
+
+        sync.push_local_changes_to_notion()
+            .await
+            .expect("Failed to push");
+
+        let courses = repository::fetch_courses(&db)
+            .await
+            .expect("Failed to fetch courses");
+
+        assert_eq!(courses.len(), 1);
+        assert_eq!(courses[0].sync_state, "synced", "sync_state should be updated to 'synced'");
+        assert!(
+            courses[0].last_synced_at.is_some(),
+            "last_synced_at should be set"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_pull_preserves_local_pending_course() {
+        let db = setup_db().await;
+        let notion = Arc::new(NoopNotionClient);
+        let sync = SyncService::new(db.clone(), notion);
+
+        // Insert a local pending course manually
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            r#"
+            INSERT INTO courses (id, title, semester, day_of_week, period, room, instructor, is_archived, updated_at, sync_state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind("course-1")
+        .bind("Local Course")
+        .bind("Spring")
+        .bind("Monday")
+        .bind(1)
+        .bind("A101")
+        .bind("Prof. Smith")
+        .bind(false)
+        .bind(&now)
+        .bind("pending")
+        .execute(&db)
+        .await
+        .expect("Failed to insert local course");
+
+        // Pull from Notion (which has no courses with NoopNotionClient)
+        sync.sync_courses_from_notion()
+            .await
+            .expect("Failed to sync courses");
+
+        let updated = repository::find_course_by_id(&db, "course-1")
+            .await
+            .expect("Failed to fetch course")
+            .expect("Course not found");
+
+        assert_eq!(
+            updated.sync_state, "pending",
+            "sync_state should remain 'pending' to preserve local changes"
+        );
+        assert_eq!(
+            updated.title, "Local Course",
+            "Local data should not be overwritten"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_push_skips_already_synced_course() {
+        let db = setup_db().await;
+        let notion = Arc::new(NoopNotionClient);
+        let sync = SyncService::new(db.clone(), notion);
+
+        let req = NewCourseRequest {
+            title: "Rust Programming".to_string(),
+            semester: "Spring".to_string(),
+            day_of_week: "Monday".to_string(),
+            period: 1,
+            room: Some("A101".to_string()),
+            instructor: Some("Prof. Smith".to_string()),
+        };
+
+        let course = repository::insert_course(&db, req)
+            .await
+            .expect("Failed to insert course");
+        let course_id = course.id;
+
+        // Mark as synced
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("UPDATE courses SET sync_state = 'synced', last_synced_at = ? WHERE id = ?")
+            .bind(&now)
+            .bind(&course_id)
+            .execute(&db)
+            .await
+            .expect("Failed to update sync state");
+
+        sync.push_local_changes_to_notion()
+            .await
+            .expect("Failed to push");
+
+        let after_push = repository::find_course_by_id(&db, &course_id)
+            .await
+            .expect("Failed to fetch course")
+            .expect("Course not found");
+
+        assert_eq!(
+            after_push.sync_state, "synced",
+            "sync_state should remain 'synced'"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_all_push_then_pull_order() {
+        let db = setup_db().await;
+        let notion = Arc::new(NoopNotionClient);
+        let sync = SyncService::new(db.clone(), notion);
+
+        let req = NewCourseRequest {
+            title: "Initial Title".to_string(),
+            semester: "Spring".to_string(),
+            day_of_week: "Monday".to_string(),
+            period: 1,
+            room: Some("A101".to_string()),
+            instructor: Some("Prof. Smith".to_string()),
+        };
+
+        let course = repository::insert_course(&db, req)
+            .await
+            .expect("Failed to insert course");
+        let course_id = course.id;
+
+        sync.sync_all()
+            .await
+            .expect("Failed to sync");
+
+        let final_state = repository::find_course_by_id(&db, &course_id)
+            .await
+            .expect("Failed to fetch course")
+            .expect("Course not found");
+
+        assert_eq!(
+            final_state.sync_state, "synced",
+            "After full sync, course should be synced"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_archive_course_not_in_notion() {
+        let db = setup_db().await;
+        let notion = Arc::new(NoopNotionClient);
+        let sync = SyncService::new(db.clone(), notion);
+
+        // Insert a course
+        let req = NewCourseRequest {
+            title: "To Be Archived".to_string(),
+            semester: "Spring".to_string(),
+            day_of_week: "Monday".to_string(),
+            period: 1,
+            room: Some("A101".to_string()),
+            instructor: Some("Prof. Smith".to_string()),
+        };
+
+        let course = repository::insert_course(&db, req)
+            .await
+            .expect("Failed to insert course");
+        let course_id = course.id;
+
+        // Mark as synced so it's not pending
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("UPDATE courses SET sync_state = 'synced', last_synced_at = ? WHERE id = ?")
+            .bind(&now)
+            .bind(&course_id)
+            .execute(&db)
+            .await
+            .expect("Failed to update sync state");
+
+        // Pull from Notion (which returns nothing with NoopNotionClient)
+        sync.sync_courses_from_notion()
+            .await
+            .expect("Failed to sync courses");
+
+        let archived = repository::find_course_by_id(&db, &course_id)
+            .await
+            .expect("Failed to fetch course")
+            .expect("Course not found");
+
+        assert_eq!(
+            archived.is_archived, true,
+            "Course not in Notion should be archived"
+        );
+    }
+}
