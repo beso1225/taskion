@@ -3,7 +3,8 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 use tracing::info;
 
-use crate::{notion::NotionClient, sync::SyncService};
+use crate::notion::NotionClient;
+use crate::services::sync_service::SyncService;
 
 /// Auto-sync スケジューラー
 /// 定期的に Notion との同期を実行
@@ -54,7 +55,7 @@ impl SyncScheduler {
     }
 
     /// 同期を実行
-    async fn run_sync(&self) -> Result<crate::sync::SyncStats, crate::error::AppError> {
+    async fn run_sync(&self) -> Result<crate::services::SyncStats, crate::error::AppError> {
         let service = SyncService::new(self.db.clone(), self.notion.clone());
         service.sync_all().await
     }

@@ -1,11 +1,10 @@
 mod error;
 mod models;
-mod repository;
-mod routes;
+mod db;
+mod api;
 mod state;
 mod notion;
-mod sync;
-mod scheduler;
+mod services;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -13,10 +12,10 @@ use sqlx::sqlite::SqlitePoolOptions;
 use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::routes::router;
+use crate::api::router;
 use crate::state::AppState;
 use crate::notion::{NotionClient, NoopNotionClient, NotionConfig, NotionHttpClient};
-use crate::scheduler::SyncScheduler;
+use crate::services::SyncScheduler;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

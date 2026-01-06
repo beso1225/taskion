@@ -5,8 +5,9 @@ use axum::{Router, extract::State, http::StatusCode, routing::get};
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::sync::{SyncService, SyncStats};
-use crate::{models::*, repository};
+use crate::services::{SyncService, SyncStats};
+use crate::models::*;
+use crate::db::repository;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
