@@ -111,12 +111,14 @@ test result: ok. 2 passed; 0 failed; 0 ignored
 #### 再構成での変更点
 
 **Before (feature/notion-sync)**:
+
 ```rust
 use backend::scheduler::SyncScheduler;
 use backend::sync::SyncService;
 ```
 
 **After (refactor/reorganize-backend-structure)**:
+
 ```rust
 use backend::services::SyncScheduler;
 // SyncService は内部で使用されるため直接インポート不要
@@ -167,12 +169,14 @@ test result: ok. 0 passed; 0 failed; 4 ignored
 #### 再構成での変更点
 
 **Before**:
+
 ```rust
 use backend::models::{Course, NewCourseRequest};
 use backend::repository;
 ```
 
 **After**:
+
 ```rust
 use backend::models::{Course, NewCourseRequest};
 // repository は統合テスト内で直接使用しないため不要
