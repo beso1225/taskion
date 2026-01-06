@@ -2,11 +2,10 @@ use axum::Json;
 use axum::extract::Path;
 use axum::routing::{patch, post};
 use axum::{Router, extract::State, http::StatusCode, routing::get};
-use tracing::error;
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::sync::SyncService;
+use crate::sync::{SyncService, SyncStats};
 use crate::{models::*, repository};
 
 pub fn router(state: AppState) -> Router {
@@ -74,8 +73,8 @@ async fn archive_todo(
     }
 }
 
-async fn sync_now(State(state): State<AppState>) -> Result<StatusCode, AppError> {
+async fn sync_now(State(state): State<AppState>) -> Result<Json<SyncStats>, AppError> {
     let service = SyncService::new(state.db.clone(), state.notion.clone());
-    service.sync_all().await?;
-    Ok(StatusCode::NO_CONTENT)
+    let stats = service.sync_all().await?;
+    Ok(Json(stats))
 }
