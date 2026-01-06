@@ -5,6 +5,7 @@ mod routes;
 mod state;
 mod notion;
 mod sync;
+mod scheduler;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::routes::router;
 use crate::state::AppState;
 use crate::notion::{NotionClient, NoopNotionClient, NotionConfig, NotionHttpClient};
+use crate::scheduler::SyncScheduler;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,11 +42,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notion_client: Arc<dyn NotionClient> = match NotionConfig::new_from_env() {
         Ok(cfg) => Arc::new(NotionHttpClient::new(cfg)?),
         Err(e) => {
-            warn!("Notoin config missing or invalid: {}. Falling back to Noop client.", e);
+            warn!("Notion config missing or invalid: {}. Falling back to Noop client.", e);
             Arc::new(NoopNotionClient)
         }
     };
-    let state = AppState { db: pool.clone(), notion: notion_client };
+    let state = AppState { db: pool.clone(), notion: notion_client.clone() };
+
+    // Auto-sync scheduler を環境変数で設定可能にする
+    let sync_interval_secs = std::env::var("SYNC_INTERVAL_SECS")
+        .unwrap_or_else(|_| "300".to_string()) // デフォルト: 5分
+        .parse::<u64>()
+        .unwrap_or(300);
+
+    // Auto-sync をバックグラウンドで実行
+    let scheduler = SyncScheduler::new(pool.clone(), notion_client, sync_interval_secs);
+    tokio::spawn(async move {
+        scheduler.start().await;
+    });
 
     let app = router(state);
 
