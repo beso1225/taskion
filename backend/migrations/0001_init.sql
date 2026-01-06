@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS courses (
 -- todos
 CREATE TABLE IF NOT EXISTS todos (
     id TEXT PRIMARY KEY,
-    course_id TEXT NOT NULL,
+    course_id TEXT,
     title TEXT NOT NULL,
     due_date TEXT NOT NULL,
     status TEXT NOT NULL,
