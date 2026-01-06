@@ -22,6 +22,7 @@ pub struct Page {
 pub enum Property {
     Title { title: Vec<RichText> },
     RichText { rich_text: Vec<RichText> },
+    Number { number: Option<f64> },
     Select { select: Option<SelectOption> },
     MultiSelect { multi_select: Vec<SelectOption> },
     Date { date: Option<DateValue> },

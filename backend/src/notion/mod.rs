@@ -3,6 +3,7 @@ pub mod dto;
 use std::env;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use reqwest::Client;
 
 use crate::error::AppError;
@@ -33,9 +34,10 @@ impl NotionConfig {
 
 #[async_trait]
 pub trait NotionClient: Send + Sync {
-    async fn sync_courses(&self) -> Result<(), AppError>;
-    async fn sync_todos(&self) -> Result<(), AppError>;
-    async fn push_changes(&self) -> Result<(), AppError>;
+    async fn fetch_courses(&self) -> Result<Vec<crate::models::Course>, AppError>;
+    async fn fetch_todos(&self) -> Result<Vec<crate::models::Todo>, AppError>;
+    async fn push_course(&self, course: &crate::models::Course) -> Result<(), AppError>;
+    async fn push_todo(&self, todo: &crate::models::Todo) -> Result<(), AppError>;
 }
 
 pub struct NotionHttpClient {
@@ -81,22 +83,87 @@ impl NotionHttpClient {
             .await
             .map_err(|e| AppError::BadRequest(format!("Failed to parse Notion response: {}", e)))
     }
+
+    async fn parse_coourse_from_page(&self, page: &dto::Page) -> Result<crate::models::Course, AppError> {
+        let title = self.get_property_text(page, "Name")?;
+        let semester = self.get_property_text(page, "Semester").unwrap_or_else(|_| "".to_string());
+        let day_of_week = self.get_property_text(page, "Day").unwrap_or_else(|_| "".to_string());
+        let period = self.get_property_number(page, "Period")
+            .and_then(|n| u32::try_from(n as u32).ok())
+            .map(|n| n as i32)
+            .unwrap_or(0);
+        let room = self.get_property_text(page, "Room").ok();
+        let instructor = self.get_property_text(page, "Instructor").ok();
+
+        Ok(crate::models::Course {
+            id: page.id.clone(),
+            title,
+            semester,
+            day_of_week,
+            period,
+            room,
+            instructor,
+            is_archived: page.archived,
+            updated_at: page.last_edited_time.clone(),
+            sync_state: "synced".to_string(),
+            last_synced_at: Some(Utc::now().to_rfc3339()),
+        })
+    }
+
+    fn get_property_text(&self, page: &dto::Page, key: &str) -> Result<String, AppError> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Title { title } => {
+                    Some(title.iter().map(|t| t.plain_text.clone()).collect::<Vec<_>>().join(""))
+                }
+                dto::Property::RichText { rich_text } => {
+                    Some(rich_text.iter().map(|t| t.plain_text.clone()).collect::<Vec<_>>().join(""))
+                }
+                _ => None,
+            })
+            .ok_or_else(|| AppError::BadRequest(format!("Missing property: {}", key)))
+    }
+
+    fn get_property_number(&self, page: &dto::Page, key: &str) -> Option<f64> {
+        page.properties
+            .get(key)
+            .and_then(|prop| match prop {
+                dto::Property::Number { number } => *number,
+                _ => None,
+            })
+    }
 }
 
 #[async_trait]
 impl NotionClient for NotionHttpClient {
-    async fn sync_courses(&self) -> Result<(), AppError> {
-        // TODO: Pull courses from Notion
+    async fn fetch_courses(&self) -> Result<Vec<crate::models::Course>, AppError> {
+        let response = self.query_database(&self.config.courses_db_id).await?;
+        let mut courses = Vec::new();
+
+        for page in response.results {
+            match self.parse_coourse_from_page(&page).await {
+                Ok(course) => courses.push(course),
+                Err(e) => {
+                    tracing::warn!("Failed to parse course from page {}: {}", page.id, e);
+                }
+            }
+        }
+        Ok(courses)
+    }
+
+    async fn fetch_todos(&self) -> Result<Vec<crate::models::Todo>, AppError> {
+        // TODO: 実装
+        Ok(Vec::new())
+    }
+
+    async fn push_course(&self, _course: &crate::models::Course) -> Result<(), AppError> {
+        // TODO: Notion に course を push
         Ok(())
     }
 
-    async fn sync_todos(&self) -> Result<(), AppError> {
-        // TODO: Pull todos from Notion
-        Ok(())
-    }
-
-    async fn push_changes(&self) -> Result<(), AppError> {
-        // TODO: Push local changes to Notion
+    async fn push_todo(&self, _todo: &crate::models::Todo) -> Result<(), AppError> {
+        // TODO: Notion に todo を push
         Ok(())
     }
 }
@@ -105,15 +172,19 @@ pub struct NoopNotionClient;
 
 #[async_trait]
 impl NotionClient for NoopNotionClient {
-    async fn sync_courses(&self) -> Result<(), AppError> {
+    async fn fetch_courses(&self) -> Result<Vec<crate::models::Course>, AppError> {
+        Ok(Vec::new())
+    }
+
+    async fn fetch_todos(&self) -> Result<Vec<crate::models::Todo>, AppError> {
+        Ok(Vec::new())
+    }
+
+    async fn push_course(&self, _course: &crate::models::Course) -> Result<(), AppError> {
         Ok(())
     }
 
-    async fn sync_todos(&self) -> Result<(), AppError> {
-        Ok(())
-    }
-
-    async fn push_changes(&self) -> Result<(), AppError> {
+    async fn push_todo(&self, _todo: &crate::models::Todo) -> Result<(), AppError> {
         Ok(())
     }
 }
