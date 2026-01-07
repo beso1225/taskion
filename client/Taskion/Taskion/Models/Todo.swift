@@ -39,3 +39,15 @@ struct NewTodoRequest: Codable {
         case status
     }
 }
+
+struct UpdateTodoRequest: Codable {
+    let title: String?
+    let dueDate: String?
+    let status: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case dueDate = "due_date"
+        case status
+    }
+}

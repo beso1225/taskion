@@ -96,6 +96,48 @@ impl NotionHttpClient {
         })
     }
 
+    async fn find_page_id_by_text_property(
+        &self,
+        database_id: &str,
+        property_name: &str,
+        value: &str,
+    ) -> Result<Option<String>, AppError> {
+        let url = format!("https://api.notion.com/v1/databases/{}/query", database_id);
+
+        let filter = serde_json::json!({
+            "property": property_name,
+            "rich_text": { "equals": value }
+        });
+
+        let request_body = dto::QueryDatabaseRequest {
+            filter: Some(filter),
+            sorts: None,
+            start_cursor: None,
+            page_size: Some(1),
+        };
+
+        let response = self.client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_token))
+            .header("Notion-Version", "2022-06-28")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|_| AppError::InternalServerError)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AppError::BadRequest(format!("Notion API error {}: {}", status, body)));
+        }
+
+        let body_text = response.text().await.unwrap_or_default();
+        let parsed: dto::QueryDatabaseResponse = serde_json::from_str(&body_text)
+            .map_err(|e| AppError::BadRequest(format!("Failed to parse Notion response: {}", e)))?;
+
+        Ok(parsed.results.first().map(|p| p.id.clone()))
+    }
+
     async fn parse_coourse_from_page(&self, page: &dto::Page) -> Result<crate::models::Course, AppError> {
         let id = page.id.clone();
         let title = self.get_property_text(page, "Name")?;
@@ -285,7 +327,10 @@ impl NotionClient for NotionHttpClient {
     }
 
     async fn push_course(&self, course: &crate::models::Course) -> Result<(), AppError> {
-        let url = format!("https://api.notion.com/v1/pages/{}", course.id);
+        // Try to locate the Notion page by course_id property first
+        let existing_page_id = self
+            .find_page_id_by_text_property(&self.config.courses_db_id, "course_id", &course.id)
+            .await?;
 
         let mut properties = serde_json::json!({});
 
@@ -335,31 +380,66 @@ impl NotionClient for NotionHttpClient {
             });
         }
 
-        let request_body = dto::UpdatePageRequest { properties };
+        // Always ensure course_id rich_text property mirrors local id
+        properties["course_id"] = serde_json::json!({
+            "rich_text": [{
+                "text": { "content": course.id }
+            }]
+        });
 
-        let response = self.client
-            .patch(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_token))
-            .header("Notion-Version", "2022-06-28")
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| AppError::InternalServerError)?;
+        if let Some(page_id) = existing_page_id {
+            // Update existing page
+            let url = format!("https://api.notion.com/v1/pages/{}", page_id);
+            let request_body = dto::UpdatePageRequest { properties };
 
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        
-        tracing::info!("Notion API response: {} - {}", status, body);
+            let response = self.client
+                .patch(&url)
+                .header("Authorization", format!("Bearer {}", self.config.api_token))
+                .header("Notion-Version", "2022-06-28")
+                .json(&request_body)
+                .send()
+                .await
+                .map_err(|_| AppError::InternalServerError)?;
 
-        if !status.is_success() {
-            return Err(AppError::BadRequest(format!("Failed to push course to Notion: {} {}", status, body)));
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::info!("Notion API response (update course): {} - {}", status, body);
+
+            if !status.is_success() {
+                return Err(AppError::BadRequest(format!("Failed to push course to Notion: {} {}", status, body)));
+            }
+        } else {
+            // Create new page in Courses database
+            let url = "https://api.notion.com/v1/pages";
+            let request_body = serde_json::json!({
+                "parent": { "database_id": self.config.courses_db_id },
+                "properties": properties
+            });
+
+            let response = self.client
+                .post(url)
+                .header("Authorization", format!("Bearer {}", self.config.api_token))
+                .header("Notion-Version", "2022-06-28")
+                .json(&request_body)
+                .send()
+                .await
+                .map_err(|_| AppError::InternalServerError)?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(AppError::BadRequest(format!("Failed to create course in Notion: {} {}", status, body)));
+            }
         }
 
         Ok(())
     }
 
     async fn push_todo(&self, todo: &crate::models::Todo) -> Result<(), AppError> {
-        let url = format!("https://api.notion.com/v1/pages/{}", todo.id);
+        // Locate the Notion page by todo_id property (rich_text)
+        let existing_page_id = self
+            .find_page_id_by_text_property(&self.config.todos_db_id, "todo_id", &todo.id)
+            .await?;
 
         let mut properties = serde_json::json!({});
 
@@ -381,21 +461,57 @@ impl NotionClient for NotionHttpClient {
             "status": { "name": todo.status }
         });
 
-        let request_body = dto::UpdatePageRequest { properties };
+        // Ensure todo_id rich_text is set to local id
+        properties["todo_id"] = serde_json::json!({
+            "rich_text": [{
+                "text": { "content": todo.id }
+            }]
+        });
 
-        let response = self.client
-            .patch(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_token))
-            .header("Notion-Version", "2022-06-28")
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| AppError::InternalServerError)?;
+        if let Some(page_id) = existing_page_id {
+            // Update existing page
+            let url = format!("https://api.notion.com/v1/pages/{}", page_id);
+            let request_body = dto::UpdatePageRequest { properties };
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(AppError::BadRequest(format!("Failed to push todo to Notion: {} {}", status, body)));
+            let response = self.client
+                .patch(&url)
+                .header("Authorization", format!("Bearer {}", self.config.api_token))
+                .header("Notion-Version", "2022-06-28")
+                .json(&request_body)
+                .send()
+                .await
+                .map_err(|_| AppError::InternalServerError)?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(AppError::BadRequest(format!("Failed to push todo to Notion: {} {}", status, body)));
+            }
+        } else {
+            // Create new page in Todos database
+            let url = "https://api.notion.com/v1/pages";
+            // Build properties manually including relation to Course
+            let mut full_props = properties.clone();
+            full_props["Course"] = serde_json::json!({ "relation": [{ "id": todo.course_id }] });
+            let request_body = serde_json::json!({
+                "parent": { "database_id": self.config.todos_db_id },
+                "properties": full_props
+            });
+
+            let response = self.client
+                .post(url)
+                .header("Authorization", format!("Bearer {}", self.config.api_token))
+                .header("Notion-Version", "2022-06-28")
+                .json(&request_body)
+                .send()
+                .await
+                .map_err(|_| AppError::InternalServerError)?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(AppError::BadRequest(format!("Failed to create todo in Notion: {} {}", status, body)));
+            }
         }
 
         Ok(())

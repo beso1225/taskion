@@ -1,3 +1,5 @@
+import Foundation
+
 final class ApiClient {
     private let session: URLSession = .shared
 
