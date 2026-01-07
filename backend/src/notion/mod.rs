@@ -461,6 +461,11 @@ impl NotionClient for NotionHttpClient {
             "status": { "name": todo.status }
         });
 
+        // Set is_archived checkbox
+        properties["is_archived"] = serde_json::json!({
+            "checkbox": todo.is_archived
+        });
+
         // Ensure todo_id rich_text is set to local id
         properties["todo_id"] = serde_json::json!({
             "rich_text": [{

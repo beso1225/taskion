@@ -78,6 +78,12 @@ impl SyncService {
         // Upsert from Notion with conflict detection
         for course in notion_courses {
             if let Some(existing) = local_courses_map.get(&course.id) {
+                // Skip if locally archived (user deleted it)
+                if existing.is_archived {
+                    warn!("Skipping course (locally archived): {}", course.title);
+                    skipped += 1;
+                    continue;
+                }
                 if existing.sync_state == "pending" {
                     warn!("Skipping course (local pending): {}", course.title);
                     skipped += 1;
@@ -135,6 +141,12 @@ impl SyncService {
         // Upsert from Notion with conflict detection
         for todo in notion_todos {
             if let Some(existing) = local_todos_map.get(&todo.id) {
+                // Skip if locally archived (user deleted it)
+                if existing.is_archived {
+                    warn!("Skipping todo (locally archived): {}", todo.title);
+                    skipped += 1;
+                    continue;
+                }
                 if existing.sync_state == "pending" {
                     warn!("Skipping todo (local pending): {}", todo.title);
                     skipped += 1;
@@ -193,22 +205,20 @@ impl SyncService {
             }
         }
 
-        let todos = repository::fetch_todos(&self.db).await?;
+        let todos = repository::fetch_pending_todos(&self.db).await?;
         let mut todo_count = 0;
         
         for todo in todos {
-            if todo.sync_state != "synced" {
-                self.notion.push_todo(&todo).await?;
-                let now = chrono::Utc::now().to_rfc3339();
-                sqlx::query!(
-                    "UPDATE todos SET sync_state = 'synced', last_synced_at = ? WHERE id = ?",
-                    now,
-                    todo.id
-                )
-                .execute(&self.db)
-                .await?;
-                todo_count += 1;
-            }
+            self.notion.push_todo(&todo).await?;
+            let now = chrono::Utc::now().to_rfc3339();
+            sqlx::query!(
+                "UPDATE todos SET sync_state = 'synced', last_synced_at = ? WHERE id = ?",
+                now,
+                todo.id
+            )
+            .execute(&self.db)
+            .await?;
+            todo_count += 1;
         }
 
         Ok((pushed_count, todo_count))

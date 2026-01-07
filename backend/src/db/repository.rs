@@ -96,6 +96,30 @@ pub async fn fetch_todos(db: &SqlitePool) -> Result<Vec<Todo>, sqlx::Error> {
     .await
 }
 
+pub async fn fetch_pending_todos(db: &SqlitePool) -> Result<Vec<Todo>, sqlx::Error> {
+    sqlx::query_as!(
+        Todo,
+        r#"
+        SELECT
+            id as "id!",
+            course_id as "course_id!",
+            title as "title!",
+            due_date as "due_date!",
+            status as "status!",
+            completed_at as "completed_at?",
+            is_archived as "is_archived: bool",
+            updated_at as "updated_at!",
+            sync_state as "sync_state!",
+            last_synced_at as "last_synced_at?"
+        FROM todos
+        WHERE sync_state != 'synced'
+        ORDER BY updated_at DESC
+        "#
+    )
+    .fetch_all(db)
+    .await
+}
+
 pub async fn insert_todo(
     db: &SqlitePool,
     req: NewTodoRequest,
