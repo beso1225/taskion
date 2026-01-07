@@ -79,11 +79,6 @@ struct ContentView: View {
             return c1.period < c2.period
         }
         
-        // デバッグ出力
-        for course in sorted {
-            print("Course: \(course.title), Semester: \(course.semester), Day: \(course.dayOfWeek), Period: \(course.period)")
-        }
-        
         return sorted
     }
     
