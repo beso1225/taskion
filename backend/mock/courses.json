@@ -1,0 +1,22 @@
+[
+  {
+    "id": "course-1",
+    "title": "Algorithms",
+    "day_of_week": "Mon",
+    "period": 1,
+    "room": "101",
+    "instructor": "Dr. Alice",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:00:00Z"
+  },
+  {
+    "id": "course-2",
+    "title": "Operating Systems",
+    "day_of_week": "Wed",
+    "period": 3,
+    "room": "202",
+    "instructor": "Prof. Bob",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:05:00Z"
+  }
+]

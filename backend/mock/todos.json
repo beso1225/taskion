@@ -1,0 +1,50 @@
+[
+  {
+    "id": "todo-1",
+    "course_id": "course-1",
+    "title": "Implement Dijkstra",
+    "due_date": "2026-01-10",
+    "status": "未着手",
+    "completed_at": null,
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:10:00Z",
+    "sync_state": "synced",
+    "last_synced_at": "2026-01-07T09:11:00Z"
+  },
+  {
+    "id": "todo-2",
+    "course_id": "course-1",
+    "title": "Write report",
+    "due_date": "2026-01-12",
+    "status": "進行中",
+    "completed_at": null,
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:12:00Z",
+    "sync_state": "synced",
+    "last_synced_at": "2026-01-07T09:13:00Z"
+  },
+  {
+    "id": "todo-3",
+    "course_id": "course-2",
+    "title": "Process scheduling quiz",
+    "due_date": "2026-01-15",
+    "status": "最終確認",
+    "completed_at": null,
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:14:00Z",
+    "sync_state": "synced",
+    "last_synced_at": "2026-01-07T09:15:00Z"
+  },
+  {
+    "id": "todo-4",
+    "course_id": "course-2",
+    "title": "Midterm review",
+    "due_date": "2026-01-20",
+    "status": "完了",
+    "completed_at": "2026-01-06T18:00:00Z",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:16:00Z",
+    "sync_state": "synced",
+    "last_synced_at": "2026-01-07T09:17:00Z"
+  }
+]
