@@ -213,6 +213,6 @@ struct CourseDetailView: View {
 }
 
 #Preview {
-    CourseDetailView(course: Course(id: "course-1", title: "Algorithms", dayOfWeek: "Mon", period: 1, room: "101", instructor: "Dr. A", isArchived: false, updatedAt: "2026-01-07T00:00:00Z"))
+    CourseDetailView(course: Course(id: "course-1", title: "Algorithms", semester: "1S1", dayOfWeek: "Mon", period: 1, room: "101", instructor: "Dr. A", isArchived: false, updatedAt: "2026-01-07T00:00:00Z"))
         .environmentObject(AppStore())
 }

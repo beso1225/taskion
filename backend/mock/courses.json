@@ -2,7 +2,8 @@
   {
     "id": "course-1",
     "title": "Algorithms",
-    "day_of_week": "Mon",
+    "semester": "2026S",
+    "day_of_week": "月",
     "period": 1,
     "room": "101",
     "instructor": "Dr. Alice",
@@ -12,11 +13,56 @@
   {
     "id": "course-2",
     "title": "Operating Systems",
-    "day_of_week": "Wed",
+    "semester": "2026S",
+    "day_of_week": "水",
     "period": 3,
     "room": "202",
     "instructor": "Prof. Bob",
     "is_archived": false,
     "updated_at": "2026-01-07T09:05:00Z"
+  },
+  {
+    "id": "course-3",
+    "title": "Database Systems",
+    "semester": "2026A",
+    "day_of_week": "火",
+    "period": 2,
+    "room": "103",
+    "instructor": "Dr. Carol",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:10:00Z"
+  },
+  {
+    "id": "course-4",
+    "title": "Web Development",
+    "semester": "2026S",
+    "day_of_week": "木",
+    "period": 4,
+    "room": "204",
+    "instructor": "Prof. David",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:15:00Z"
+  },
+  {
+    "id": "course-5",
+    "title": "Machine Learning",
+    "semester": "2026A",
+    "day_of_week": "月",
+    "period": 1,
+    "room": "105",
+    "instructor": "Dr. Eve",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:20:00Z"
+  },
+  {
+    "id": "course-6",
+    "title": "Computer Networks",
+    "semester": "2026S",
+    "day_of_week": "火",
+    "period": 3,
+    "room": "106",
+    "instructor": "Prof. Frank",
+    "is_archived": false,
+    "updated_at": "2026-01-07T09:25:00Z"
   }
 ]
