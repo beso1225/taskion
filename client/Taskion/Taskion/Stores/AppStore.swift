@@ -25,11 +25,12 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func fetchTodos() async {
+    func fetchTodos(includeArchived: Bool = false) async {
         isLoading = true
         errorMessage = nil
         do {
-            todos = try await apiClient.request(.todos)
+            let path = includeArchived ? "/todos?include_archived=true" : "/todos"
+            todos = try await apiClient.request(Endpoint(path: path, method: "GET"))
             isLoading = false
         } catch {
             errorMessage = "Todo取得失敗: \(error.localizedDescription)"

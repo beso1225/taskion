@@ -4,7 +4,14 @@ final class ApiClient {
     private let session: URLSession = .shared
 
     func request<T: Decodable>(_ endpoint: Endpoint, body: Data? = nil) async throws -> T {
-        let url = AppConfig.baseURL.appendingPathComponent(endpoint.path)
+        // パスにクエリが含まれる場合は直接URLを構築
+        let url: URL
+        if endpoint.path.contains("?") {
+            url = URL(string: AppConfig.baseURL.absoluteString + endpoint.path)!
+        } else {
+            url = AppConfig.baseURL.appendingPathComponent(endpoint.path)
+        }
+        
         var req = URLRequest(url: url)
         req.httpMethod = endpoint.method
         if let body = body {
@@ -28,7 +35,14 @@ final class ApiClient {
 
     // For endpoints that return no content (e.g., 204)
     func requestNoContent(_ endpoint: Endpoint, body: Data? = nil) async throws {
-        let url = AppConfig.baseURL.appendingPathComponent(endpoint.path)
+        // パスにクエリが含まれる場合は直接URLを構築
+        let url: URL
+        if endpoint.path.contains("?") {
+            url = URL(string: AppConfig.baseURL.absoluteString + endpoint.path)!
+        } else {
+            url = AppConfig.baseURL.appendingPathComponent(endpoint.path)
+        }
+        
         var req = URLRequest(url: url)
         req.httpMethod = endpoint.method
         if let body = body {

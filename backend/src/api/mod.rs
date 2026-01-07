@@ -1,13 +1,20 @@
 use axum::Json;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::routing::{patch, post};
 use axum::{Router, extract::State, http::StatusCode, routing::get};
+use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::services::{SyncService, SyncStats};
 use crate::models::*;
 use crate::db::repository;
+
+#[derive(Deserialize)]
+struct TodoQueryParams {
+    #[serde(default)]
+    include_archived: bool,
+}
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -38,8 +45,15 @@ async fn create_course(
     Ok(Json(course))
 }
 
-async fn list_todos(State(state): State<AppState>) -> Result<Json<Vec<Todo>>, AppError> {
-    let todos = repository::fetch_todos(&state.db).await?;
+async fn list_todos(
+    State(state): State<AppState>,
+    Query(params): Query<TodoQueryParams>
+) -> Result<Json<Vec<Todo>>, AppError> {
+    let todos = if params.include_archived {
+        repository::fetch_all_todos(&state.db).await?
+    } else {
+        repository::fetch_todos(&state.db).await?
+    };
     Ok(Json(todos))
 }
 

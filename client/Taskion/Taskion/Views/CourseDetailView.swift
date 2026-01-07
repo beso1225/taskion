@@ -200,10 +200,15 @@ struct CourseDetailView: View {
         }
         .task {
             // 初回表示で Todos を取得
-            await store.fetchTodos()
+            await store.fetchTodos(includeArchived: showArchived)
         }
         .refreshable {
-            await store.fetchTodos()
+            await store.fetchTodos(includeArchived: showArchived)
+        }
+        .onChange(of: showArchived) { _, newValue in
+            Task {
+                await store.fetchTodos(includeArchived: newValue)
+            }
         }
         .sheet(isPresented: $showingCreate) {
             NavigationStack {
