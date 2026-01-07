@@ -7,13 +7,33 @@ struct CourseDetailView: View {
     @State private var showingCreate = false
     @State private var newTitle = ""
     @State private var newDueDate = ""
+    @State private var newDueDateDate = Date()
     @State private var newStatus = "未着手"
     @State private var editingTodo: Todo?
     @State private var editTitle = ""
     @State private var editDueDate = ""
+    @State private var editDueDateDate = Date()
     @State private var editStatus = "未着手"
     
     private let statusOptions = ["未着手", "進行中", "最終確認", "完了"]
+
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "ja_JP")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
+    private func parseDate(_ string: String) -> Date {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "ja_JP")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: string) ?? Date()
+    }
     
     var body: some View {
         List {
@@ -66,6 +86,15 @@ struct CourseDetailView: View {
                             }
                             .tint(.blue)
                         }
+                        .swipeActions(edge: .leading) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await store.archiveTodo(id: todo.id)
+                                }
+                            } label: {
+                                Label("アーカイブ", systemImage: "archivebox")
+                            }
+                        }
                         .onTapGesture {
                             editingTodo = todo
                             editTitle = todo.title
@@ -108,7 +137,7 @@ struct CourseDetailView: View {
                 Form {
                     Section("課題情報") {
                         TextField("タイトル", text: $newTitle)
-                        TextField("期限 (YYYY-MM-DD)", text: $newDueDate)
+                        DatePicker("期限", selection: $newDueDateDate, displayedComponents: .date)
                         Picker("進捗", selection: $newStatus) {
                             ForEach(statusOptions, id: \.self) { s in
                                 Text(s).tag(s)
@@ -124,16 +153,17 @@ struct CourseDetailView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("作成") {
                             Task {
-                                let req = NewTodoRequest(courseId: course.id, title: newTitle, dueDate: newDueDate, status: newStatus)
+                                let req = NewTodoRequest(courseId: course.id, title: newTitle, dueDate: formatDate(newDueDateDate), status: newStatus)
                                 await store.createTodo(request: req)
                                 showingCreate = false
                                 // フォーム初期化
                                 newTitle = ""
                                 newDueDate = ""
+                                newDueDateDate = Date()
                                 newStatus = statusOptions.first ?? "未着手"
                             }
                         }
-                        .disabled(newTitle.isEmpty || newDueDate.isEmpty)
+                        .disabled(newTitle.isEmpty)
                     }
                 }
             }
@@ -143,7 +173,7 @@ struct CourseDetailView: View {
                 Form {
                     Section("課題の編集") {
                         TextField("タイトル", text: $editTitle)
-                        TextField("期限 (YYYY-MM-DD)", text: $editDueDate)
+                        DatePicker("期限", selection: $editDueDateDate, displayedComponents: .date)
                         Picker("進捗", selection: $editStatus) {
                             ForEach(statusOptions, id: \.self) { s in
                                 Text(s).tag(s)
@@ -163,7 +193,7 @@ struct CourseDetailView: View {
                                 guard statusOptions.contains(editStatus) else { return }
                                 let req = UpdateTodoRequest(
                                     title: editTitle.isEmpty ? nil : editTitle,
-                                    dueDate: editDueDate.isEmpty ? nil : editDueDate,
+                                    dueDate: formatDate(editDueDateDate),
                                     status: editStatus
                                 )
                                 await store.updateTodo(id: todo.id, request: req)
@@ -172,6 +202,11 @@ struct CourseDetailView: View {
                         }
                     }
                 }
+            }
+        }
+        .onChange(of: editingTodo) { _, newValue in
+            if let t = newValue {
+                editDueDateDate = parseDate(t.dueDate)
             }
         }
     }

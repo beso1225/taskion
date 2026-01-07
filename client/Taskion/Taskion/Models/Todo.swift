@@ -1,6 +1,6 @@
 import Foundation
 
-struct Todo: Codable, Identifiable {
+struct Todo: Codable, Identifiable, Equatable {
     let id: String
     let courseId: String
     let title: String

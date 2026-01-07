@@ -25,6 +25,25 @@ final class ApiClient {
             throw ApiError.decoding(error)
         }
     }
+
+    // For endpoints that return no content (e.g., 204)
+    func requestNoContent(_ endpoint: Endpoint, body: Data? = nil) async throws {
+        let url = AppConfig.baseURL.appendingPathComponent(endpoint.path)
+        var req = URLRequest(url: url)
+        req.httpMethod = endpoint.method
+        if let body = body {
+            req.httpBody = body
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (_, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse else {
+            throw ApiError.invalidURL
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw ApiError.serverStatus(http.statusCode)
+        }
+    }
 }
 
 extension JSONDecoder {

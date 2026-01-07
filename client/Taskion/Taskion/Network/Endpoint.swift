@@ -9,4 +9,5 @@ extension Endpoint {
     static let todos = Endpoint(path: "/todos", method: "GET")
     static func sync() -> Endpoint { Endpoint(path: "/sync", method: "POST") }
     static func todoUpdate(id: String) -> Endpoint { Endpoint(path: "/todos/\(id)", method: "PATCH") }
+    static func todoArchive(id: String) -> Endpoint { Endpoint(path: "/todos/\(id)/archive", method: "PATCH") }
 }

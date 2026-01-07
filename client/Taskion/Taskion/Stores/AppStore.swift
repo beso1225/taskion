@@ -69,6 +69,18 @@ final class AppStore: ObservableObject {
         }
     }
 
+    // MARK: - Archive
+
+    func archiveTodo(id: String) async {
+        errorMessage = nil
+        do {
+            try await apiClient.requestNoContent(Endpoint.todoArchive(id: id))
+            await fetchTodos()
+        } catch {
+            errorMessage = "Todoアーカイブ失敗: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Sync
 
     func triggerSync() async {
