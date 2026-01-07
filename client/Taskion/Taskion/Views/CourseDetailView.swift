@@ -15,7 +15,45 @@ struct CourseDetailView: View {
     @State private var editDueDateDate = Date()
     @State private var editStatus = "未着手"
     
+    @State private var selectedStatus = "すべて"
+    @State private var showArchived = false
+    
     private let statusOptions = ["未着手", "進行中", "最終確認", "完了"]
+    private let filterOptions = ["すべて", "未着手", "進行中", "最終確認", "完了"]
+    
+    // 期限切れ判定
+    private func isOverdue(_ dueDate: String) -> Bool {
+        let today = formatDate(Date())
+        return dueDate < today
+    }
+    
+    // フィルタリング済みTodo
+    private var filteredTodos: [Todo] {
+        let courseTodos = store.todos.filter { $0.courseId == course.id }
+        
+        // アーカイブフィルタ
+        let archivedFiltered = showArchived ? courseTodos : courseTodos.filter { !$0.isArchived }
+        
+        // ステータスフィルタ
+        let statusFiltered: [Todo]
+        if selectedStatus == "すべて" {
+            statusFiltered = archivedFiltered
+        } else {
+            statusFiltered = archivedFiltered.filter { $0.status == selectedStatus }
+        }
+        
+        // ソート: 期限切れ → 期限順 → ステータス順
+        return statusFiltered.sorted { t1, t2 in
+            let overdue1 = isOverdue(t1.dueDate) && t1.status != "完了"
+            let overdue2 = isOverdue(t2.dueDate) && t2.status != "完了"
+            
+            if overdue1 != overdue2 {
+                return overdue1  // 期限切れを先に
+            }
+            
+            return t1.dueDate < t2.dueDate
+        }
+    }
 
     private func formatDate(_ date: Date) -> String {
         let f = DateFormatter()
@@ -36,35 +74,69 @@ struct CourseDetailView: View {
     }
     
     var body: some View {
-        List {
-            if store.isLoading && store.todos.isEmpty {
-                ProgressView("読み込み中...")
-            } else if let error = store.errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
-            } else {
-                let items = store.todos.filter { $0.courseId == course.id }
-                if items.isEmpty {
-                    Text("この授業に紐づく課題はありません")
-                        .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            // フィルタUI
+            VStack(spacing: 8) {
+                Picker("ステータス", selection: $selectedStatus) {
+                    ForEach(filterOptions, id: \.self) { status in
+                        Text(status).tag(status)
+                    }
+                }
+                .pickerStyle(.segmented)
+                
+                Toggle("アーカイブ済みを表示", isOn: $showArchived)
+                    .toggleStyle(.switch)
+            }
+            .padding()
+            
+            List {
+                if store.isLoading && store.todos.isEmpty {
+                    ProgressView("読み込み中...")
+                } else if let error = store.errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
                 } else {
-                    ForEach(items) { todo in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(todo.title)
-                                    .font(.headline)
-                                Text("期限: \(todo.dueDate)")
+                    if filteredTodos.isEmpty {
+                        Text("該当する課題はありません")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(filteredTodos) { todo in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(todo.title)
+                                            .font(.headline)
+                                        if todo.isArchived {
+                                            Text("アーカイブ済み")
+                                                .font(.caption2)
+                                                .padding(4)
+                                                .background(Color.gray.opacity(0.2))
+                                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        }
+                                    }
+                                    HStack {
+                                        Text("期限: \(todo.dueDate)")
+                                            .font(.caption)
+                                        if isOverdue(todo.dueDate) && todo.status != "完了" {
+                                            Text("期限切れ")
+                                                .font(.caption2)
+                                                .foregroundColor(.white)
+                                                .padding(4)
+                                                .background(Color.red)
+                                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        }
+                                    }
+                                    .foregroundColor(isOverdue(todo.dueDate) && todo.status != "完了" ? .red : .secondary)
+                                }
+                                Spacer()
+                                Text(todo.status)
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .padding(6)
+                                    .background(Color.gray.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
-                            Spacer()
-                            Text(todo.status)
-                                .font(.caption)
-                                .padding(6)
-                                .background(Color.gray.opacity(0.15))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        .padding(.vertical, 4)
+                            .padding(.vertical, 4)
+                            .opacity(todo.isArchived ? 0.5 : 1.0)
                         .swipeActions(edge: .trailing) {
                             Button {
                                 Task {
@@ -104,6 +176,7 @@ struct CourseDetailView: View {
                     }
                 }
             }
+        }
         }
         .navigationTitle(course.title)
         .toolbar {
