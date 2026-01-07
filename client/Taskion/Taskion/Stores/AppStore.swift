@@ -60,11 +60,14 @@ final class AppStore: ObservableObject {
         errorMessage = nil
         do {
             let body = try JSONEncoder().encode(request)
-            let _: Todo = try await apiClient.request(
+            let updated: Todo = try await apiClient.request(
                 Endpoint.todoUpdate(id: id),
                 body: body
             )
-            await fetchTodos()
+            // ローカル状態を更新
+            if let index = todos.firstIndex(where: { $0.id == id }) {
+                todos[index] = updated
+            }
         } catch {
             errorMessage = "Todo更新失敗: \(error.localizedDescription)"
         }
@@ -74,11 +77,49 @@ final class AppStore: ObservableObject {
 
     func archiveTodo(id: String) async {
         errorMessage = nil
+        
+        // 1. UIを即座に更新
+        if let index = todos.firstIndex(where: { $0.id == id }) {
+            var updated = todos[index]
+            updated.isArchived = true
+            todos[index] = updated
+        }
+        
+        // 2. API呼び出し
         do {
             try await apiClient.requestNoContent(Endpoint.todoArchive(id: id))
-            await fetchTodos()
         } catch {
             errorMessage = "Todoアーカイブ失敗: \(error.localizedDescription)"
+            // エラー時は元に戻す
+            if let index = todos.firstIndex(where: { $0.id == id }) {
+                var reverted = todos[index]
+                reverted.isArchived = false
+                todos[index] = reverted
+            }
+        }
+    }
+    
+    func unarchiveTodo(id: String) async {
+        errorMessage = nil
+        
+        // 1. UIを即座に更新
+        if let index = todos.firstIndex(where: { $0.id == id }) {
+            var updated = todos[index]
+            updated.isArchived = false
+            todos[index] = updated
+        }
+        
+        // 2. API呼び出し
+        do {
+            try await apiClient.requestNoContent(Endpoint.todoUnarchive(id: id))
+        } catch {
+            errorMessage = "Todoアーカイブ解除失敗: \(error.localizedDescription)"
+            // エラー時は元に戻す
+            if let index = todos.firstIndex(where: { $0.id == id }) {
+                var reverted = todos[index]
+                reverted.isArchived = true
+                todos[index] = reverted
+            }
         }
     }
 

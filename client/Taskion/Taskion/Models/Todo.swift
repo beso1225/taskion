@@ -7,7 +7,7 @@ struct Todo: Codable, Identifiable, Equatable {
     let dueDate: String
     let status: String
     let completedAt: String?
-    let isArchived: Bool
+    var isArchived: Bool  // mutableに変更
     let updatedAt: String
     let syncState: String
     let lastSyncedAt: String?

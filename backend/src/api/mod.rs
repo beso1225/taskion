@@ -23,6 +23,7 @@ pub fn router(state: AppState) -> Router {
         .route("/todos", get(list_todos).post(create_todo))
         .route("/todos/{id}", patch(update_todo))
         .route("/todos/{id}/archive", patch(archive_todo))
+        .route("/todos/{id}/unarchive", patch(unarchive_todo))
         .route("/sync", post(sync_now))
         .with_state(state)
 }
@@ -81,6 +82,18 @@ async fn archive_todo(
     Path(id): Path<String>
 ) -> Result<StatusCode, AppError> {
     let ok = repository::archive_todo(&state.db, &id).await?;
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+async fn unarchive_todo(
+    State(state): State<AppState>,
+    Path(id): Path<String>
+) -> Result<StatusCode, AppError> {
+    let ok = repository::unarchive_todo(&state.db, &id).await?;
     if ok {
         Ok(StatusCode::NO_CONTENT)
     } else {

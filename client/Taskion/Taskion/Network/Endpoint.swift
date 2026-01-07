@@ -10,4 +10,5 @@ extension Endpoint {
     static func sync() -> Endpoint { Endpoint(path: "/sync", method: "POST") }
     static func todoUpdate(id: String) -> Endpoint { Endpoint(path: "/todos/\(id)", method: "PATCH") }
     static func todoArchive(id: String) -> Endpoint { Endpoint(path: "/todos/\(id)/archive", method: "PATCH") }
+    static func todoUnarchive(id: String) -> Endpoint { Endpoint(path: "/todos/\(id)/unarchive", method: "PATCH") }
 }

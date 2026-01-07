@@ -269,6 +269,26 @@ pub async fn archive_todo(db: &SqlitePool, id: &str) -> Result<bool, sqlx::Error
     Ok(result > 0)
 }
 
+pub async fn unarchive_todo(db: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
+    let now = Utc::now().to_rfc3339();
+    let result = sqlx::query!(
+        r#"
+        UPDATE todos
+        SET is_archived = 0,
+            updated_at = ?2,
+            sync_state = 'pending'
+        WHERE id = ?1
+        "#,
+        id,
+        now,
+    )
+    .execute(db)
+    .await?
+    .rows_affected();
+
+    Ok(result > 0)
+}
+
 pub async fn find_course_by_id(db: &SqlitePool, id: &str) -> Result<Option<Course>, sqlx::Error> {
     sqlx::query_as::<_, Course>(
         "SELECT id, title, semester, day_of_week, period, room, instructor, is_archived, updated_at, sync_state, last_synced_at FROM courses WHERE id = ?"
